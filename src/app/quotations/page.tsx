@@ -4,7 +4,26 @@ import { useQuery, gql } from '@apollo/client';
 import Link from 'next/link';
 import { useAuth } from '@/lib/AuthContext';
 
-// GraphQL query to fetch all quotations
+// --- TypeScript Interfaces ---
+
+// Describes a single quotation object in the list
+interface QuotationListItem {
+  id: string;
+  quotationId: string;
+  status: string;
+  totalAmount: number;
+  clientInfo: {
+    name: string;
+  };
+  createdAt: string | number;
+}
+
+// Describes the shape of the entire data object returned by the query
+interface GetQuotationsData {
+  quotations: QuotationListItem[];
+}
+
+// --- GraphQL Query ---
 const GET_QUOTATIONS = gql`
   query GetQuotations {
     quotations {
@@ -22,16 +41,13 @@ const GET_QUOTATIONS = gql`
 
 export default function QuotationsListPage() {
   const { loading: authLoading } = useAuth();
-  const { loading: dataLoading, error, data } = useQuery(GET_QUOTATIONS);
+  // Apply the GetQuotationsData interface for a fully typed `data` object
+  const { loading: dataLoading, error, data } = useQuery<GetQuotationsData>(GET_QUOTATIONS);
 
-  const formatDate = (dateValue: any) => {
+  const formatDate = (dateValue: string | number | null | undefined) => {
     if (!dateValue) return '—';
-
-    // Ensure it is a number
     const timestamp = typeof dateValue === 'number' ? dateValue : Number(dateValue);
-
     const date = new Date(timestamp);
-
     return isNaN(date.getTime())
       ? 'Invalid date'
       : date.toLocaleDateString('en-GB', {
@@ -40,8 +56,6 @@ export default function QuotationsListPage() {
           year: 'numeric',
         });
   };
-
-
 
   if (authLoading || dataLoading) {
     return <div style={{ textAlign: 'center', marginTop: '5rem' }}>Loading quotations...</div>;
@@ -72,32 +86,29 @@ export default function QuotationsListPage() {
             </tr>
           </thead>
           <tbody>
-            {data?.quotations.length > 0 ? (
-  data.quotations.map((q: any) => {
-
-    return (
-      <tr key={q.id} style={{ borderTop: '1px solid #e5e7eb' }}>
-        <td style={tableCellStyle}>{q.quotationId}</td>
-        <td style={tableCellStyle}>{q.clientInfo.name}</td>
-        <td style={tableCellStyle}>{formatDate(q.createdAt)}</td>
-        <td style={tableCellStyle}><StatusBadge status={q.status} /></td>
-        <td style={{...tableCellStyle, textAlign: 'right', fontWeight: '500' }}>
-          {new Intl.NumberFormat('en-AE', { style: 'currency', currency: 'AED' }).format(q.totalAmount)}
-        </td>
-        <td style={{...tableCellStyle, textAlign: 'center'}}>
-          <Link href={`/quotations/${q.id}`} style={{...actionButtonStyle}}>
-            View
-          </Link>
-        </td>
-      </tr>
-    );
-  })
-) : (
-  <tr>
-    <td colSpan={6} style={{ textAlign: 'center', padding: '2rem' }}>No quotations found.</td>
-  </tr>
-)}
-
+            {data?.quotations && data.quotations.length > 0 ? (
+              // 'q' is now automatically typed as QuotationListItem
+              data.quotations.map((q) => (
+                <tr key={q.id} style={{ borderTop: '1px solid #e5e7eb' }}>
+                  <td style={tableCellStyle}>{q.quotationId}</td>
+                  <td style={tableCellStyle}>{q.clientInfo.name}</td>
+                  <td style={tableCellStyle}>{formatDate(q.createdAt)}</td>
+                  <td style={tableCellStyle}><StatusBadge status={q.status} /></td>
+                  <td style={{...tableCellStyle, textAlign: 'right', fontWeight: '500' }}>
+                    {new Intl.NumberFormat('en-AE', { style: 'currency', currency: 'AED' }).format(q.totalAmount)}
+                  </td>
+                  <td style={{...tableCellStyle, textAlign: 'center'}}>
+                    <Link href={`/quotations/${q.id}`} style={{...actionButtonStyle}}>
+                      View
+                    </Link>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={6} style={{ textAlign: 'center', padding: '2rem' }}>No quotations found.</td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -105,26 +116,18 @@ export default function QuotationsListPage() {
   );
 }
 
-// --- Helper Components & Styles ---
+// --- Typed Helper Components & Styles ---
 
 const StatusBadge = ({ status }: { status: string }) => {
-    const statusStyles: any = {
+    const statusStyles: Record<string, React.CSSProperties> = {
         Draft: { background: '#f3f4f6', color: '#4b5563' },
         Sent: { background: '#dbeafe', color: '#1d4ed8' },
         Approved: { background: '#d1fae5', color: '#065f46' },
         Rejected: { background: '#fee2e2', color: '#991b1b' },
     };
     const style = statusStyles[status] || statusStyles['Draft'];
-
     return (
-        <span style={{
-            ...style,
-            padding: '0.25rem 0.75rem',
-            borderRadius: '9999px',
-            fontSize: '0.75rem',
-            fontWeight: '600',
-            textTransform: 'capitalize'
-        }}>
+        <span style={{ ...style, padding: '0.25rem 0.75rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: '600', textTransform: 'capitalize' }}>
             {status}
         </span>
     );
@@ -167,4 +170,3 @@ const tableCellStyle: React.CSSProperties = {
     color: '#374151',
     verticalAlign: 'middle'
 };
-

@@ -4,6 +4,35 @@ import { useQuery, gql } from '@apollo/client';
 import Link from 'next/link';
 import { useAuth } from '@/lib/AuthContext';
 
+// --- TypeScript Interfaces ---
+
+// Describes a single product instance within an AMC
+interface ProductInstance {
+  product: {
+    name: string;
+  };
+}
+
+// Describes the structure of a single AMC object in the list
+interface AmcListItem {
+  id: string;
+  amcId: string;
+  status: string;
+  clientInfo: {
+    name: string;
+  };
+  productInstances: ProductInstance[];
+  startDate: string | number;
+  endDate: string | number;
+}
+
+// Describes the shape of the entire data object returned by the query
+interface GetAmcsData {
+  amcs: AmcListItem[];
+}
+
+// --- GraphQL Query ---
+
 const GET_AMCS = gql`
   query GetAMCs {
     amcs {
@@ -11,7 +40,6 @@ const GET_AMCS = gql`
       amcId
       status
       clientInfo { name }
-      # --- UPDATED: Fetch the array of product instances ---
       productInstances {
         product {
           name
@@ -25,24 +53,22 @@ const GET_AMCS = gql`
 
 export default function AMCsListPage() {
   const { loading: authLoading } = useAuth();
-  const { loading: dataLoading, error, data } = useQuery(GET_AMCS);
+  // Apply the GetAmcsData interface for full type safety on `data`
+  const { loading: dataLoading, error, data } = useQuery<GetAmcsData>(GET_AMCS);
 
-  const formatDate = (dateValue: any) => {
-  if (!dateValue) return '—';
-
-  // Ensure it is a number
-  const timestamp = typeof dateValue === 'number' ? dateValue : Number(dateValue);
-
-  const date = new Date(timestamp);
-
-  return isNaN(date.getTime())
-    ? 'Invalid date'
-    : date.toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-      });
-};
+  // Type the dateValue parameter
+  const formatDate = (dateValue: string | number | null | undefined) => {
+    if (!dateValue) return '—';
+    const timestamp = typeof dateValue === 'number' ? dateValue : Number(dateValue);
+    const date = new Date(timestamp);
+    return isNaN(date.getTime())
+      ? 'Invalid date'
+      : date.toLocaleDateString('en-GB', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        });
+  };
 
   if (authLoading || dataLoading) {
     return <div style={{ textAlign: 'center', marginTop: '5rem' }}>Loading AMCs...</div>;
@@ -75,14 +101,15 @@ export default function AMCsListPage() {
               </tr>
             </thead>
             <tbody>
-              {data?.amcs.length > 0 ? (
-                data.amcs.map((amc: any, index: number) => (
+              {data?.amcs && data.amcs.length > 0 ? (
+                // 'amc' is now automatically typed as AmcListItem
+                data.amcs.map((amc, index) => (
                   <tr key={amc.id} style={{ borderTop: index > 0 ? '1px solid #e5e7eb' : 'none' }}>
                     <td style={tableCellStyle}>{amc.amcId}</td>
                     <td style={tableCellStyle}>{amc.clientInfo.name}</td>
-                    {/* --- UPDATED: Display a list of product names --- */}
                     <td style={tableCellStyle}>
-                      {amc.productInstances.map((p: any) => p.product.name).join(', ')}
+                      {/* 'p' is now automatically typed as ProductInstance */}
+                      {amc.productInstances.map((p) => p.product.name).join(', ')}
                     </td>
                     <td style={tableCellStyle}>{formatDate(amc.startDate)}</td>
                     <td style={tableCellStyle}>{formatDate(amc.endDate)}</td>
@@ -107,14 +134,19 @@ export default function AMCsListPage() {
   );
 }
 
-// --- Helper Components & Styles ---
+// --- Typed Helper Components & Styles ---
 const StatusBadge = ({ status }: { status: string }) => {
-    const statusStyles: any = { Active: { background: '#d1fae5', color: '#065f46' }, Expired: { background: '#fee2e2', color: '#991b1b' }, Cancelled: { background: '#e5e7eb', color: '#4b5563' }};
+    // A safer type for an object with string keys and CSS property values
+    const statusStyles: Record<string, React.CSSProperties> = { 
+        Active: { background: '#d1fae5', color: '#065f46' }, 
+        Expired: { background: '#fee2e2', color: '#991b1b' }, 
+        Cancelled: { background: '#e5e7eb', color: '#4b5563' }
+    };
     const style = statusStyles[status] || { background: '#f3f4f6', color: '#4b5563' };
     return <span style={{ ...style, padding: '0.25rem 0.75rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: '600', textTransform: 'capitalize' }}>{status}</span>;
 };
+
 const buttonStyle: React.CSSProperties = { backgroundColor: '#2563eb', color: '#fff', fontWeight: '600', padding: '0.6rem 1.2rem', borderRadius: '0.375rem', border: 'none', cursor: 'pointer', textDecoration: 'none' };
 const actionButtonStyle: React.CSSProperties = { backgroundColor: '#fff', color: '#374151', fontWeight: '500', padding: '0.4rem 0.8rem', borderRadius: '0.375rem', border: '1px solid #d1d5db', cursor: 'pointer', textDecoration: 'none', fontSize: '0.875rem' };
 const tableHeaderStyle: React.CSSProperties = { textAlign: 'left', padding: '0.75rem 1.5rem', color: '#6b7280', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' };
 const tableCellStyle: React.CSSProperties = { padding: '1rem 1.5rem', color: '#374151', verticalAlign: 'middle', whiteSpace: 'nowrap' };
-

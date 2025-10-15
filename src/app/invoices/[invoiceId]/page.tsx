@@ -2,9 +2,53 @@
 
 import { useQuery, gql, useMutation } from '@apollo/client';
 import { useParams } from 'next/navigation';
-import { useState } from 'react';
+import { useState, ChangeEvent, FormEvent } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import Link from 'next/link';
+
+// --- TypeScript Interfaces ---
+
+interface Address {
+  street: string | null;
+  city: string | null;
+  pincode: string | null;
+}
+
+interface ClientInfo {
+  name: string;
+  phone: string;
+  email: string;
+  billingAddress: Address | null;
+}
+
+interface LineItem {
+  product: { name: string } | null;
+  description: string | null;
+  quantity: number;
+  price: number;
+}
+
+interface Invoice {
+  id: string;
+  invoiceId: string;
+  status: string;
+  totalAmount: number;
+  amountPaid: number;
+  balanceDue: number;
+  issueDate: string | number | null;
+  dueDate: string | number | null;
+  paymentDate: string | number | null;
+  installationDate: string | number | null; // Added for type safety
+  clientInfo: ClientInfo;
+  lineItems: LineItem[];
+  termsOfService: string | null;
+}
+
+interface InvoiceDetailsData {
+  invoice: Invoice;
+}
+
+// --- GraphQL Queries & Mutations ---
 
 const GET_INVOICE_DETAILS = gql`
   query GetInvoiceDetails($id: ID!) {
@@ -48,39 +92,31 @@ const RECORD_PAYMENT_MUTATION = gql`
 
 export default function InvoiceDetailPage() {
   const params = useParams();
-
-  // --- THIS IS THE FIX ---
-  // We now correctly look for `params.invoiceId` to match your folder structure.
   const id = Array.isArray(params.invoiceId) ? params.invoiceId[0] : params.invoiceId as string;
-  // --- END OF FIX ---
   
   const { loading: authLoading } = useAuth();
-  const { loading, error, data, refetch } = useQuery(GET_INVOICE_DETAILS, { variables: { id }, skip: !id });
+  const { loading, error, data, refetch } = useQuery<InvoiceDetailsData>(GET_INVOICE_DETAILS, { variables: { id }, skip: !id });
 
   const [isPaymentModalOpen, setPaymentModalOpen] = useState(false);
 
   if (!id || authLoading || loading) return <div style={{ textAlign: 'center', marginTop: '5rem' }}>Loading invoice details...</div>;
   if (error) return <div style={{ color: 'red' }}>Error: {error.message}</div>;
-  if (!data || !data.invoice) return <div style={{ textAlign: 'center' }}>Invoice not found.</div>;
+  if (!data?.invoice) return <div style={{ textAlign: 'center' }}>Invoice not found.</div>;
 
   const { invoice } = data;
 
-  const formatDate = (dateValue: any) => {
-  if (!dateValue) return '—';
-
-  // Ensure it is a number
-  const timestamp = typeof dateValue === 'number' ? dateValue : Number(dateValue);
-
-  const date = new Date(timestamp);
-
-  return isNaN(date.getTime())
-    ? 'Invalid date'
-    : date.toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-      });
-};
+  const formatDate = (dateValue: string | number | null | undefined) => {
+    if (!dateValue) return '—';
+    const timestamp = typeof dateValue === 'number' ? dateValue : Number(dateValue);
+    const date = new Date(timestamp);
+    return isNaN(date.getTime())
+      ? 'Invalid date'
+      : date.toLocaleDateString('en-GB', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        });
+  };
 
   return (
     <div style={{ maxWidth: '900px', margin: 'auto', padding: '1rem 1rem 4rem 1rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
@@ -91,19 +127,15 @@ export default function InvoiceDetailPage() {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                 <StatusBadge status={invoice.status} />
-                <Link 
-                    href={`/amcs/new?fromInvoice=${invoice.id}`}
-                    style={{...buttonStyle}}
-                  >
-                    Generate AMC
-                  </Link>
+                <Link href={`/amcs/new?fromInvoice=${invoice.id}`} style={{...buttonStyle}}>
+                  Generate AMC
+                </Link>
                 {invoice.status !== 'Paid' && (
                     <button onClick={() => setPaymentModalOpen(true)} style={{...buttonStyle}}>Record Payment</button>
                 )}
             </div>
         </div>
 
-        {/* Client & Date Info */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', padding: '1.5rem', backgroundColor: '#fff', borderRadius: '0.75rem', border: '1px solid #e5e7eb' }}>
             <div>
                 <h3 style={detailHeaderStyle}>BILLED TO</h3>
@@ -113,15 +145,14 @@ export default function InvoiceDetailPage() {
             </div>
             <div style={{ textAlign: 'right' }}>
                 <h3 style={detailHeaderStyle}>INVOICE DATE</h3>
-                <p style={detailTextStyle}>{invoice.issueDate ? formatDate(invoice.issueDate) : "__"}</p>
+                <p style={detailTextStyle}>{formatDate(invoice.issueDate)}</p>
                 <h3 style={{ ...detailHeaderStyle, marginTop: '1rem' }}>INSTALLATION DATE</h3>
-                <p style={detailTextStyle}>{invoice.dueDate ? formatDate(invoice.installationDate) : "__"}</p>
+                <p style={detailTextStyle}>{formatDate(invoice.installationDate)}</p>
                 <h3 style={{ ...detailHeaderStyle, marginTop: '1rem' }}>DUE DATE</h3>
-                <p style={detailTextStyle}>{invoice.dueDate ? formatDate(invoice.dueDate) : "__"}</p>
+                <p style={detailTextStyle}>{formatDate(invoice.dueDate)}</p>
             </div>
         </div>
 
-        {/* Line Items Table */}
         <div style={{ backgroundColor: '#fff', borderRadius: '0.75rem', border: '1px solid #e5e7eb', overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead style={{ backgroundColor: '#f9fafb' }}>
@@ -133,7 +164,7 @@ export default function InvoiceDetailPage() {
                     </tr>
                 </thead>
                 <tbody style={{ borderTop: '1px solid #e5e7eb' }}>
-                    {invoice.lineItems.map((item: any, index: number) => (
+                    {invoice.lineItems.map((item, index) => (
                     <tr key={index} style={{ borderTop: index > 0 ? '1px solid #f3f4f6' : 'none' }}>
                         <td style={tableCellStyle}>
                             <p style={{ fontWeight: '600', color: '#111827' }}>{item.product?.name || 'N/A'}</p>
@@ -148,7 +179,6 @@ export default function InvoiceDetailPage() {
             </table>
         </div>
         
-        {/* Totals & Terms Section */}
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '2rem', flexWrap: 'wrap-reverse' }}>
             <div style={{ flex: '1 1 300px' }}>
                 {invoice.termsOfService && (
@@ -179,7 +209,15 @@ export default function InvoiceDetailPage() {
   );
 }
 
-const RecordPaymentModal = ({ invoiceId, balanceDue, onClose, onPaymentRecorded }: any) => {
+// --- Typed RecordPaymentModal Component ---
+interface RecordPaymentModalProps {
+  invoiceId: string;
+  balanceDue: number;
+  onClose: () => void;
+  onPaymentRecorded: () => void;
+}
+
+const RecordPaymentModal = ({ invoiceId, balanceDue, onClose, onPaymentRecorded }: RecordPaymentModalProps) => {
     const [amount, setAmount] = useState(balanceDue.toFixed(2));
     const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
 
@@ -191,7 +229,7 @@ const RecordPaymentModal = ({ invoiceId, balanceDue, onClose, onPaymentRecorded 
         }
     });
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = (e: FormEvent) => {
         e.preventDefault();
         recordPayment({ variables: { input: { invoiceId, amount: parseFloat(amount), paymentDate } } });
     };
@@ -201,8 +239,8 @@ const RecordPaymentModal = ({ invoiceId, balanceDue, onClose, onPaymentRecorded 
             <div style={{ backgroundColor: 'white', padding: '2rem', borderRadius: '0.75rem', width: '100%', maxWidth: '400px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}>
                 <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '1.5rem' }}>Record Payment</h2>
                 <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <InputField label="Payment Amount (AED)" type="number" value={amount} onChange={(e: any) => setAmount(e.target.value)} required step="0.01" />
-                    <InputField label="Payment Date" type="date" value={paymentDate} onChange={(e: any) => setPaymentDate(e.target.value)} required />
+                    <InputField label="Payment Amount (AED)" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} required step="0.01" />
+                    <InputField label="Payment Date" type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} required />
                     {error && <p style={{color: 'red'}}>{error.message}</p>}
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1.5rem' }}>
                         <button type="button" onClick={onClose} style={{...buttonStyle, backgroundColor: '#e5e7eb', color: '#1f2937'}}>Cancel</button>
@@ -214,20 +252,27 @@ const RecordPaymentModal = ({ invoiceId, balanceDue, onClose, onPaymentRecorded 
     );
 };
 
-// --- Helper Components & Styles ---
+// --- Typed Helper Components & Styles ---
+
 const formatCurrency = (amount: number) => new Intl.NumberFormat('en-AE', { style: 'currency', currency: 'AED' }).format(amount);
+
 const StatusBadge = ({ status }: { status: string }) => {
-    const statusStyles: any = { Draft: { background: '#f3f4f6', color: '#4b5563' }, Sent: { background: '#dbeafe', color: '#1d4ed8' }, Paid: { background: '#d1fae5', color: '#065f46' }, Overdue: { background: '#fee2e2', color: '#991b1b' }, Cancelled: { background: '#e5e7eb', color: '#4b5563' } };
+    const statusStyles: Record<string, React.CSSProperties> = { Draft: { background: '#f3f4f6', color: '#4b5563' }, Sent: { background: '#dbeafe', color: '#1d4ed8' }, Paid: { background: '#d1fae5', color: '#065f46' }, Overdue: { background: '#fee2e2', color: '#991b1b' }, Cancelled: { background: '#e5e7eb', color: '#4b5563' } };
     const style = statusStyles[status] || statusStyles['Draft'];
     return ( <span style={{ ...style, padding: '0.25rem 0.75rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: '600', textTransform: 'capitalize' }}> {status} </span> );
 };
-const buttonStyle: React.CSSProperties = { padding: '0.5rem 1rem', fontWeight: '600', borderRadius: '0.375rem', border: 'none', cursor: 'pointer', backgroundColor: '#2563eb', color: 'white', transition: 'background-color 0.2s' };
-const InputField = ({ label, ...props }: any) => (
+
+interface InputFieldProps extends React.InputHTMLAttributes<HTMLInputElement> {
+  label: string;
+}
+const InputField = ({ label, ...props }: InputFieldProps) => (
     <div>
         <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#4b5563' }}>{label}</label>
         <input style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', outline: 'none' }} {...props} />
     </div>
 );
+
+const buttonStyle: React.CSSProperties = { padding: '0.5rem 1rem', fontWeight: '600', borderRadius: '0.375rem', border: 'none', cursor: 'pointer', backgroundColor: '#2563eb', color: 'white', transition: 'background-color 0.2s' };
 const detailHeaderStyle: React.CSSProperties = { color: '#6b7280', fontSize: '0.75rem', fontWeight: '600', marginBottom: '0.25rem', textTransform: 'uppercase' };
 const detailTextStyle: React.CSSProperties = { color: '#111827' };
 const tableHeaderStyle: React.CSSProperties = { textAlign: 'left', padding: '0.75rem 1.5rem', color: '#6b7280', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: '600' };

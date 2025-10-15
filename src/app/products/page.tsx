@@ -4,6 +4,23 @@ import { useQuery, useMutation, gql } from '@apollo/client';
 import Link from 'next/link';
 import { useAuth } from '@/lib/AuthContext';
 
+// --- TypeScript Interfaces ---
+
+// Describes a single product object in the list
+interface ProductListItem {
+  id: string;
+  name: string;
+  type: 'product' | 'service';
+  price: number;
+}
+
+// Describes the shape of the entire data object returned by the query
+interface GetProductsData {
+  products: ProductListItem[];
+}
+
+// --- GraphQL Queries & Mutations ---
+
 const GET_PRODUCTS = gql`
   query GetProducts {
     products { id name type price }
@@ -18,15 +35,17 @@ const DELETE_PRODUCT = gql`
 
 export default function ProductsListPage() {
   const { loading: authLoading } = useAuth();
-  const { loading: dataLoading, error, data, refetch } = useQuery(GET_PRODUCTS);
+  // Apply the GetProductsData interface for a fully typed `data` object
+  const { loading: dataLoading, error, data, refetch } = useQuery<GetProductsData>(GET_PRODUCTS);
   
   const [deleteProduct] = useMutation(DELETE_PRODUCT, {
       onCompleted: () => {
           alert('Product deleted successfully.');
-          refetch();
+          refetch(); // refetch is often sufficient
       },
       onError: (err) => alert(`Error deleting product: ${err.message}`),
-      refetchQueries: ['GetProducts', 'GetDashboardData']
+      // refetchQueries is good for updating other, unrelated parts of the cache
+      refetchQueries: ['GetProducts', 'GetDashboardData'] 
   });
 
   const handleDelete = (id: string, name: string) => {
@@ -59,8 +78,9 @@ export default function ProductsListPage() {
               </tr>
             </thead>
             <tbody>
-              {data?.products.length > 0 ? (
-                data.products.map((p: any, index: number) => (
+              {data?.products && data.products.length > 0 ? (
+                // 'p' is now automatically typed as ProductListItem
+                data.products.map((p, index) => (
                   <tr key={p.id} style={{ borderTop: index > 0 ? '1px solid #e5e7eb' : 'none' }}>
                     <td style={tableCellStyle}>{p.name}</td>
                     <td style={{...tableCellStyle, textTransform: 'capitalize'}}>{p.type}</td>
@@ -89,4 +109,3 @@ const buttonStyle: React.CSSProperties = { backgroundColor: '#2563eb', color: '#
 const actionButtonStyle: React.CSSProperties = { backgroundColor: '#fff', color: '#374151', fontWeight: '500', padding: '0.4rem 0.8rem', borderRadius: '0.375rem', border: '1px solid #d1d5db', cursor: 'pointer', textDecoration: 'none', fontSize: '0.875rem' };
 const tableHeaderStyle: React.CSSProperties = { textAlign: 'left', padding: '0.75rem 1.5rem', color: '#6b7280', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' };
 const tableCellStyle: React.CSSProperties = { padding: '1rem 1.5rem', color: '#374151', verticalAlign: 'middle', whiteSpace: 'nowrap' };
-

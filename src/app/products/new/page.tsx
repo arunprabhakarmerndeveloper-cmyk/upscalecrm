@@ -1,10 +1,23 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, FormEvent, ChangeEvent } from 'react';
 import { useMutation, gql } from '@apollo/client';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/AuthContext';
+
+// --- TypeScript Interfaces ---
+
+// Describes the structure of the form's state
+interface ProductFormData {
+  name: string;
+  sku: string;
+  price: string; // Use string for input field compatibility
+  type: 'product' | 'service';
+  description: string;
+}
+
+// --- GraphQL Mutation ---
 
 const CREATE_PRODUCT = gql`
   mutation CreateProduct($input: ProductInput!) {
@@ -15,23 +28,35 @@ const CREATE_PRODUCT = gql`
 export default function NewProductPage() {
     const { loading: authLoading } = useAuth();
     const router = useRouter();
-    const [formData, setFormData] = useState({ name: '', sku: '', price: '', type: 'product', description: '' });
+    
+    // Apply the ProductFormData interface to the component's state
+    const [formData, setFormData] = useState<ProductFormData>({ 
+      name: '', 
+      sku: '', 
+      price: '', 
+      type: 'product', 
+      description: '' 
+    });
     
     const [createProduct, { loading: mutationLoading, error }] = useMutation(CREATE_PRODUCT, {
         onCompleted: () => {
             alert('Product/Service created successfully!');
             router.push('/products');
         },
-        refetchQueries: ['GetProducts'] // Refetches the product list on the main page
+        refetchQueries: ['GetProducts']
     });
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
     
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = (e: FormEvent) => {
         e.preventDefault();
-        createProduct({ variables: { input: { ...formData, price: parseFloat(formData.price) } } });
+        const input = {
+          ...formData,
+          price: parseFloat(formData.price) // Ensure price is a number for the mutation
+        };
+        createProduct({ variables: { input } });
     };
 
     if (authLoading) return <div style={{ textAlign: 'center', marginTop: '5rem' }}>Loading...</div>;
@@ -71,11 +96,25 @@ export default function NewProductPage() {
     );
 }
 
-// --- Helper Components & Styles ---
+// --- Typed Helper Components & Styles ---
+
 const FormSection = ({ title, children }: {title: string, children: React.ReactNode}) => (<div style={{ backgroundColor: '#fff', borderRadius: '0.75rem', padding: '1.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', border: '1px solid #e5e7eb' }}><h2 style={{ fontSize: '1.25rem', fontWeight: '600', borderBottom: '1px solid #e5e7eb', paddingBottom: '1rem', marginBottom: '1.5rem' }}>{title}</h2>{children}</div>);
-const InputField = ({ label, ...props }: any) => (<div><label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#4b5563' }}>{label}</label><input style={{ width: '100%', padding: '0.6rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', outline: 'none' }} {...props} /></div>);
-const TextAreaField = ({ label, ...props }: any) => (<div><label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#4b5563' }}>{label}</label><textarea rows={3} style={{ width: '100%', padding: '0.6rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', outline: 'none' }} {...props} /></div>);
-const SelectField = ({ label, children, ...props }: any) => (<div><label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#4b5563' }}>{label}</label><select style={{ width: '100%', padding: '0.6rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', backgroundColor: 'white' }} {...props}>{children}</select></div>);
+
+interface InputFieldProps extends React.InputHTMLAttributes<HTMLInputElement> {
+  label: string;
+}
+const InputField = ({ label, ...props }: InputFieldProps) => (<div><label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#4b5563' }}>{label}</label><input style={{ width: '100%', padding: '0.6rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', outline: 'none' }} {...props} /></div>);
+
+interface TextAreaFieldProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
+    label: string;
+}
+const TextAreaField = ({ label, ...props }: TextAreaFieldProps) => (<div><label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#4b5563' }}>{label}</label><textarea rows={3} style={{ width: '100%', padding: '0.6rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', outline: 'none' }} {...props} /></div>);
+
+interface SelectFieldProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
+    label: string;
+    children: React.ReactNode;
+}
+const SelectField = ({ label, children, ...props }: SelectFieldProps) => (<div><label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', color: '#4b5563' }}>{label}</label><select style={{ width: '100%', padding: '0.6rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', backgroundColor: 'white' }} {...props}>{children}</select></div>);
+
 const gridStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem' };
 const buttonStyle: React.CSSProperties = { backgroundColor: '#2563eb', color: '#fff', fontWeight: '600', padding: '0.6rem 1.5rem', borderRadius: '0.375rem', border: 'none', cursor: 'pointer', textDecoration: 'none' };
-

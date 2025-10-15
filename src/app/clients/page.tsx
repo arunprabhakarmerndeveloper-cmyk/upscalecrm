@@ -4,6 +4,23 @@ import { useQuery, gql } from '@apollo/client';
 import Link from 'next/link';
 import { useAuth } from '@/lib/AuthContext';
 
+// --- TypeScript Interfaces ---
+
+// Describes a single client object in the list
+interface ClientListItem {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+}
+
+// Describes the shape of the entire data object returned by the query
+interface GetClientsData {
+  clients: ClientListItem[];
+}
+
+// --- GraphQL Query ---
+
 const GET_CLIENTS = gql`
   query GetClients {
     clients {
@@ -17,7 +34,9 @@ const GET_CLIENTS = gql`
 
 export default function ClientsListPage() {
   const { loading: authLoading } = useAuth();
-  const { loading: dataLoading, error, data } = useQuery(GET_CLIENTS);
+  
+  // Apply the GetClientsData interface for a fully typed `data` object
+  const { loading: dataLoading, error, data } = useQuery<GetClientsData>(GET_CLIENTS);
 
   if (authLoading || dataLoading) {
     return <div style={{ textAlign: 'center', marginTop: '5rem' }}>Loading clients...</div>;
@@ -46,7 +65,8 @@ export default function ClientsListPage() {
             </tr>
           </thead>
           <tbody>
-            {data?.clients.map((client: any, index: number) => (
+            {data?.clients.map((client, index) => (
+              // 'client' is now automatically typed as ClientListItem
               <tr key={client.id} style={{ borderTop: index > 0 ? '1px solid #e5e7eb' : 'none' }}>
                 <td style={tableCellStyle}>{client.name}</td>
                 <td style={tableCellStyle}>{client.phone}</td>

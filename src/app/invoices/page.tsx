@@ -4,7 +4,29 @@ import { useQuery, gql } from '@apollo/client';
 import Link from 'next/link';
 import { useAuth } from '@/lib/AuthContext';
 
-// GraphQL query to fetch all invoices
+// --- TypeScript Interfaces ---
+
+// Describes a single invoice object in the list
+interface InvoiceListItem {
+  id: string;
+  invoiceId: string;
+  status: string;
+  totalAmount: number;
+  dueDate: string | number | null;
+  issueDate: string | number;
+  installationDate?: string | number | null; // Added to match table header, optional
+  clientInfo: {
+    name: string;
+  };
+}
+
+// Describes the shape of the entire data object returned by the query
+interface GetInvoicesData {
+  invoices: InvoiceListItem[];
+}
+
+// --- GraphQL Query ---
+
 const GET_INVOICES = gql`
   query GetInvoices {
     invoices {
@@ -23,25 +45,21 @@ const GET_INVOICES = gql`
 
 export default function InvoicesListPage() {
   const { loading: authLoading } = useAuth();
-  const { loading: dataLoading, error, data } = useQuery(GET_INVOICES);
+  // Apply the GetInvoicesData interface for a fully typed `data` object
+  const { loading: dataLoading, error, data } = useQuery<GetInvoicesData>(GET_INVOICES);
 
-  const formatDate = (dateValue: any) => {
-  if (!dateValue) return '—';
-
-  // Ensure it is a number
-  const timestamp = typeof dateValue === 'number' ? dateValue : Number(dateValue);
-
-  const date = new Date(timestamp);
-
-  return isNaN(date.getTime())
-    ? 'Invalid date'
-    : date.toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-      });
-};
-
+  const formatDate = (dateValue: string | number | null | undefined) => {
+    if (!dateValue) return '—';
+    const timestamp = typeof dateValue === 'number' ? dateValue : Number(dateValue);
+    const date = new Date(timestamp);
+    return isNaN(date.getTime())
+      ? 'Invalid date'
+      : date.toLocaleDateString('en-GB', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        });
+  };
 
   if (authLoading || dataLoading) {
     return <div style={{ textAlign: 'center', marginTop: '5rem' }}>Loading invoices...</div>;
@@ -54,7 +72,6 @@ export default function InvoicesListPage() {
     <div style={{ maxWidth: '1280px', margin: 'auto', padding: '2rem 1rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <h1 style={{ fontSize: '2rem', fontWeight: '700' }}>Invoices</h1>
-        {/* We will add a 'new' page later if manual creation is needed */}
         {/* <Link href="/invoices/new" style={{ ...buttonStyle }}>+ Add New Invoice</Link> */}
       </div>
 
@@ -72,8 +89,9 @@ export default function InvoicesListPage() {
             </tr>
           </thead>
           <tbody>
-            {data?.invoices.length > 0 ? (
-              data.invoices.map((inv: any, index: number) => (
+            {data?.invoices && data.invoices.length > 0 ? (
+              // 'inv' is now automatically typed as InvoiceListItem
+              data.invoices.map((inv, index) => (
                 <tr key={inv.id} style={{ borderTop: index > 0 ? '1px solid #e5e7eb' : 'none' }}>
                   <td style={tableCellStyle}>{inv.invoiceId}</td>
                   <td style={tableCellStyle}>{inv.clientInfo.name}</td>
@@ -102,10 +120,10 @@ export default function InvoicesListPage() {
   );
 }
 
-// --- Helper Components & Styles ---
+// --- Typed Helper Components & Styles ---
 
 const StatusBadge = ({ status }: { status: string }) => {
-    const statusStyles: any = {
+    const statusStyles: Record<string, React.CSSProperties> = {
         Draft: { background: '#f3f4f6', color: '#4b5563' },
         Sent: { background: '#dbeafe', color: '#1d4ed8' },
         Paid: { background: '#d1fae5', color: '#065f46' },
