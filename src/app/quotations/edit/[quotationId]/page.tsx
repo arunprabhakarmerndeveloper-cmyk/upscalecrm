@@ -1,14 +1,11 @@
 "use client";
 
-import { useState, useMemo, useEffect, FormEvent, ChangeEvent } from 'react';
+import { useState, useMemo, useEffect, FormEvent, ReactNode } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/lib/AuthContext';
-import Link from 'next/link';
 
 // --- TypeScript Interfaces ---
-
-// State Management Types
 interface ClientInfoState {
   name: string;
   phone: string;
@@ -23,8 +20,6 @@ interface CommercialTermState {
   title: string;
   content: string;
 }
-
-// GraphQL Data Types
 interface SelectOption {
   id: string;
   name: string;
@@ -53,7 +48,22 @@ interface GetEditQuotationFormData {
   clients: SelectOption[];
 }
 
-// A custom hook for responsive inline styles (unchanged)
+interface LineItemInput {
+    productId: string;
+    quantity: number;
+    price: number;
+    description: string;
+}
+
+interface UpdateQuotationInput {
+  lineItems: LineItemInput[];
+  validUntil?: string | null;
+  commercialTerms?: CommercialTermState[];
+  reason: string;
+  totalAmount: number;
+}
+
+
 const useMediaQuery = (query: string) => {
   const [matches, setMatches] = useState(false);
   useEffect(() => {
@@ -68,7 +78,7 @@ const useMediaQuery = (query: string) => {
   return matches;
 };
 
-// --- GraphQL Queries and Mutations ---
+// --- GraphQL ---
 const GET_EDIT_FORM_DATA = gql`
   query GetEditQuotationFormData($id: ID!) {
     quotation(id: $id) {
@@ -88,7 +98,6 @@ const GET_EDIT_FORM_DATA = gql`
     clients { id name }
   }
 `;
-
 const UPDATE_QUOTATION = gql`
   mutation UpdateQuotation($id: ID!, $input: UpdateQuotationInput!) {
     updateQuotation(id: $id, input: $input) {
@@ -107,7 +116,6 @@ export default function EditQuotationPage() {
   const id = Array.isArray(params.quotationId) ? params.quotationId[0] : params.quotationId as string;
   const isDesktop = useMediaQuery('(min-width: 768px)');
 
-  // State Management with Types
   const [clientInfo, setClientInfo] = useState<ClientInfoState>({ name: '', phone: '' });
   const [lineItems, setLineItems] = useState<LineItemState[]>([{ productId: '', quantity: 1, price: 0, description: '' }]);
   const [validUntil, setValidUntil] = useState('');
@@ -153,7 +161,8 @@ export default function EditQuotationPage() {
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!updateReason) { alert('Please provide a reason for this update.'); return; }
-    const input = {
+    
+    const input: UpdateQuotationInput = {
       lineItems: lineItems.map(({ productId, quantity, price, description }) => ({ 
         productId, 
         quantity: parseInt(String(quantity), 10) || 1, 
@@ -163,6 +172,7 @@ export default function EditQuotationPage() {
       validUntil: validUntil || null,
       commercialTerms,
       reason: updateReason,
+      totalAmount: totalAmount,
     };
     updateQuotation({ variables: { id, input } });
   };
@@ -228,20 +238,27 @@ export default function EditQuotationPage() {
                     ))}
                 </div>
                 <button type="button" onClick={addLineItem} style={{ marginTop: '1rem', backgroundColor: '#e5e7eb', color: '#374151', fontWeight: '600', padding: '0.5rem 1rem', borderRadius: '0.5rem', border: 'none', cursor: 'pointer' }}>+ Add Item</button>
+                
+                <div style={{ marginTop: '1.5rem', textAlign: 'right', borderTop: '1px solid #e5e7eb', paddingTop: '1rem' }}>
+                    <span style={{ fontSize: '1.125rem', fontWeight: '500', color: '#4b5563' }}>Current Total: </span>
+                    <span style={{ fontSize: '1.25rem', fontWeight: '700', color: '#111827' }}>
+                        {formatCurrency(totalAmount)}
+                    </span>
+                </div>
             </FormSection>
 
             <FormSection title="Commercial Terms">
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {commercialTerms.map((term, index) => (
-                        <div key={index} style={{ display: 'flex', flexDirection: isDesktop ? 'row' : 'column', gap: '1rem', alignItems: isDesktop ? 'center' : 'stretch', padding: '1rem', backgroundColor: '#f9fafb', borderRadius: '0.5rem', border: '1px solid #e5e7eb' }}>
-                            <div style={{ flex: '1 1 0%' }}><InputField placeholder="Title (e.g., Warranty)" value={term.title} onChange={(e) => handleTermChange(index, 'title', e.target.value)} /></div>
-                            <div style={{ flex: '2 1 0%' }}><TextAreaField placeholder="Content..." value={term.content} onChange={(e) => handleTermChange(index, 'content', e.target.value)} /></div>
-                            <div style={{ flex: '0 0 auto' }}><button type="button" onClick={() => removeCommercialTerm(index)} style={{ ...buttonStyle, backgroundColor: '#ef4444' }}>Remove</button></div>
-                        </div>
-                    ))}
-                </div>
-                <button type="button" onClick={addCommercialTerm} style={{ marginTop: '1rem', backgroundColor: '#e5e7eb', color: '#374151', fontWeight: '600', padding: '0.5rem 1rem', borderRadius: '0.5rem', border: 'none', cursor: 'pointer' }}>+ Add Custom Term</button>
-            </FormSection>
+                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                     {commercialTerms.map((term, index) => (
+                         <div key={index} style={{ display: 'flex', flexDirection: isDesktop ? 'row' : 'column', gap: '1rem', alignItems: isDesktop ? 'center' : 'stretch', padding: '1rem', backgroundColor: '#f9fafb', borderRadius: '0.5rem', border: '1px solid #e5e7eb' }}>
+                             <div style={{ flex: '1 1 0%' }}><InputField placeholder="Title (e.g., Warranty)" value={term.title} onChange={(e) => handleTermChange(index, 'title', e.target.value)} /></div>
+                             <div style={{ flex: '2 1 0%' }}><TextAreaField placeholder="Content..." value={term.content} onChange={(e) => handleTermChange(index, 'content', e.target.value)} /></div>
+                             <div style={{ flex: '0 0 auto' }}><button type="button" onClick={() => removeCommercialTerm(index)} style={{ ...buttonStyle, backgroundColor: '#ef4444' }}>Remove</button></div>
+                         </div>
+                     ))}
+                 </div>
+                 <button type="button" onClick={addCommercialTerm} style={{ marginTop: '1rem', backgroundColor: '#e5e7eb', color: '#374151', fontWeight: '600', padding: '0.5rem 1rem', borderRadius: '0.5rem', border: 'none', cursor: 'pointer' }}>+ Add Custom Term</button>
+             </FormSection>
 
             <FormSection title="Other Details">
                 <InputField label="Valid Until" type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} />
@@ -258,22 +275,29 @@ export default function EditQuotationPage() {
 }
 
 // --- Typed Helper Sub-components ---
-const FormSection = ({ title, children }: { title: string, children: React.ReactNode }) => ( <div style={{ backgroundColor: '#fff', borderRadius: '0.75rem', padding: '1.5rem', boxShadow: '0 1px 3px 0 rgba(0,0,0,0.1)', border: '1px solid #e5e7eb' }}> <h2 style={{ fontSize: '1.25rem', fontWeight: '600', borderBottom: '1px solid #e5e7eb', paddingBottom: '1rem', marginBottom: '1.5rem' }}>{title}</h2> {children} </div> );
-
-interface InputFieldProps extends React.InputHTMLAttributes<HTMLInputElement> {
-    label?: string;
-}
+const formatCurrency = (amount: number) => new Intl.NumberFormat('en-AE', { style: 'currency', currency: 'AED' }).format(amount);
+const FormSection = ({ title, children }: { title: string, children: ReactNode }) => ( <div style={{ backgroundColor: '#fff', borderRadius: '0.75rem', padding: '1.5rem', boxShadow: '0 1px 3px 0 rgba(0,0,0,0.1)', border: '1px solid #e5e7eb' }}> <h2 style={{ fontSize: '1.25rem', fontWeight: '600', borderBottom: '1px solid #e5e7eb', paddingBottom: '1rem', marginBottom: '1.5rem' }}>{title}</h2> {children} </div> );
+interface InputFieldProps extends React.InputHTMLAttributes<HTMLInputElement> { label?: string; }
 const InputField = ({ label, ...props }: InputFieldProps) => ( <div> {label && <label style={{ display: 'block', marginBottom: '0.375rem', fontSize: '0.875rem', fontWeight: '500', color: '#4b5563' }}>{label}</label>} <input style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', boxShadow: '0 1px 2px 0 rgba(0,0,0,0.05)', outline: 'none' }} {...props} /> </div> );
-
-interface TextAreaFieldProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
-    label?: string;
-}
+interface TextAreaFieldProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> { label?: string; }
 const TextAreaField = ({ label, ...props }: TextAreaFieldProps) => ( <div> {label && <label style={{ display: 'block', marginBottom: '0.375rem', fontSize: '0.875rem', fontWeight: '500', color: '#4b5563' }}>{label}</label>} <textarea rows={3} style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', boxShadow: '0 1px 2px 0 rgba(0,0,0,0.05)', outline: 'none' }} {...props} /> </div> );
 
-interface SelectFieldProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
-    label?: string;
+// --- THIS IS THE FIX ---
+// 1. Add 'placeholder' to the props interface
+interface SelectFieldProps extends React.SelectHTMLAttributes<HTMLSelectElement> { 
+    label?: string; 
     options?: SelectOption[];
+    placeholder?: string; // <-- Add this line
 }
-const SelectField = ({ label, options, ...props }: SelectFieldProps) => ( <div> {label && <label style={{ display: 'block', marginBottom: '0.375rem', fontSize: '0.875rem', fontWeight: '500', color: '#4b5563' }}>{label}</label>} <select style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', boxShadow: '0 1px 2px 0 rgba(0,0,0,0.05)', outline: 'none', backgroundColor: 'white' }} {...props}><option value="">Please select</option>{options?.map((opt) => (<option key={opt.id} value={opt.id}>{opt.name}</option>))}</select> </div> );
+// 2. Update the component to use the 'placeholder'
+const SelectField = ({ label, options, placeholder, ...props }: SelectFieldProps) => ( 
+    <div> 
+        {label && <label style={{ display: 'block', marginBottom: '0.375rem', fontSize: '0.875rem', fontWeight: '500', color: '#4b5563' }}>{label}</label>} 
+        <select style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', boxShadow: '0 1px 2px 0 rgba(0,0,0,0.05)', outline: 'none', backgroundColor: 'white' }} {...props}>
+            <option value="">{placeholder || 'Please select'}</option>
+            {options?.map((opt) => (<option key={opt.id} value={opt.id}>{opt.name}</option>))}
+        </select> 
+    </div> 
+);
 
 const buttonStyle: React.CSSProperties = { backgroundColor: '#2563eb', color: '#fff', fontWeight: '600', padding: '0.6rem 1rem', borderRadius: '0.375rem', border: 'none', cursor: 'pointer' };

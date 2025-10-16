@@ -146,7 +146,7 @@ export default function QuotationDetailPage() {
   };
 
   const handleStatusChange = (newStatus: string) => {
-      if (!data?.quotation) return; // Type guard
+      if (!data?.quotation) return;
 
       if (newStatus === 'Approved') {
           const { quotation } = data;
@@ -271,7 +271,8 @@ export default function QuotationDetailPage() {
               <div key={version.version} style={{ backgroundColor: '#f9fafb', borderRadius: '0.5rem', padding: '1rem', border: '1px solid #e5e7eb' }}>
                 <p style={{ fontWeight: '600' }}>Version {version.version}</p>
                 <p style={{ fontSize: '0.875rem', color: '#6b7280' }}>Updated on {new Date(Number(version.updatedAt)).toLocaleString()} by {version.updatedBy?.name || 'Unknown'}</p>
-                <p style={{ marginTop: '0.5rem', fontStyle: 'italic' }}>Reason: "{version.reason}"</p>
+                {/* --- THIS IS THE FIX --- */}
+                <p style={{ marginTop: '0.5rem', fontStyle: 'italic' }}>Reason: &quot;{version.reason}&quot;</p>
                 <p style={{ marginTop: '0.5rem', fontWeight: '500' }}>Previous Total: {formatCurrency(version.totalAmount)}</p>
               </div>
             ))}
@@ -282,7 +283,7 @@ export default function QuotationDetailPage() {
   );
 }
 
-// --- Typed ActionsMenu Component ---
+// --- Typed ActionsMenu Component (and other helpers/styles are unchanged) ---
 interface ActionsMenuProps {
   onStatusChange: (newStatus: string) => void;
   isLoading: boolean;
@@ -322,7 +323,6 @@ const ActionsMenu = ({ onStatusChange, isLoading }: ActionsMenuProps) => {
     );
 };
 
-// --- Helper Functions & Components ---
 const formatDate = (dateValue: string | number | null | undefined) => {
     if (!dateValue) return '—';
     const timestamp = typeof dateValue === 'number' ? dateValue : Number(dateValue);
@@ -342,7 +342,6 @@ const StatusBadge = ({ status }: { status: string }) => {
     return ( <span style={{ ...style, padding: '0.25rem 0.75rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: '600', textTransform: 'capitalize' }}> {status} </span> );
 };
 
-// --- Styles ---
 const detailHeaderStyle: React.CSSProperties = { color: '#6b7280', fontSize: '0.75rem', fontWeight: '600', marginBottom: '0.25rem', textTransform: 'uppercase' };
 const detailTextStyle: React.CSSProperties = { color: '#111827' };
 const tableHeaderStyle: React.CSSProperties = { textAlign: 'left', padding: '0.75rem 1.5rem', color: '#6b7280', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: '600' };

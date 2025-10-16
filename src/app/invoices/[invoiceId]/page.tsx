@@ -2,7 +2,7 @@
 
 import { useQuery, gql, useMutation } from '@apollo/client';
 import { useParams } from 'next/navigation';
-import { useState, ChangeEvent, FormEvent } from 'react';
+import { useState, FormEvent } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import Link from 'next/link';
 

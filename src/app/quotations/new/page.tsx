@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, ChangeEvent, FormEvent } from 'react';
+import { useState, useMemo, FormEvent } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/AuthContext';

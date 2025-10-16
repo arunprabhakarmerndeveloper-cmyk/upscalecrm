@@ -8,7 +8,6 @@ import { MyContext } from "../route";
 
 // --- TypeScript Interfaces ---
 
-// For mutation inputs
 interface ClientInfoInput {
   name: string;
   phone: string;
@@ -42,30 +41,46 @@ interface UpdateQuotationInput {
   reason: string;
 }
 
-// For Mongoose Documents
+// --- FIX #1: Create a specific and complete interface for the editHistory sub-document ---
+interface IQuotationVersion {
+  version: number;
+  updatedAt: Date;
+  updatedBy: Types.ObjectId;
+  reason: string;
+  lineItems: Types.DocumentArray<{ product: Types.ObjectId | { name: string } }>;
+  totalAmount: number;
+  commercialTerms: Types.DocumentArray<{ title: string; content: string }>;
+}
+
 interface QuotationDocument extends Document {
   _id: Types.ObjectId;
   client?: Types.ObjectId;
-  clientInfo: any; // Mongoose Mixed type
-  lineItems: any; // Mongoose sub-document array
+  clientInfo: {
+      name: string;
+      contactPerson?: string;
+      phone: string;
+      email?: string;
+      billingAddress?: object;
+      installationAddress?: object;
+  };
+  lineItems: Types.DocumentArray<{ product: Types.ObjectId | { name: string } }>;
   totalAmount: number;
-  editHistory: any; // Mongoose sub-document array
-  commercialTerms: any; // Mongoose sub-document array
+  editHistory: Types.DocumentArray<IQuotationVersion>; // Use the new, specific interface
+  commercialTerms: Types.DocumentArray<{ title: string; content: string }>;
   status: string;
   validUntil?: Date;
 }
 
 // --- Resolver Map ---
-
 const quotationResolver = {
   Query: {
     quotations: async (_: unknown, __: unknown, context: MyContext) => {
-      if (!context.user) throw new GraphQLError("Not authenticated");
-      return await Quotation.find({}).sort({ createdAt: -1 }).populate("client");
+        if (!context.user) throw new GraphQLError("Not authenticated");
+        return await Quotation.find({}).sort({ createdAt: -1 }).populate("client");
     },
     quotation: async (_: unknown, { id }: { id: string }, context: MyContext) => {
-      if (!context.user) throw new GraphQLError("Not authenticated");
-      return await Quotation.findById(id)
+        if (!context.user) throw new GraphQLError("Not authenticated");
+        return await Quotation.findById(id)
         .populate("client")
         .populate("lineItems.product")
         .populate({ path: "editHistory", populate: { path: "updatedBy" } });
@@ -74,93 +89,104 @@ const quotationResolver = {
   Mutation: {
     createQuotation: async (_: unknown, { input }: { input: CreateQuotationInput }, context: MyContext) => {
       if (!context.user) throw new GraphQLError("Not authenticated");
-      const { clientId, clientInfo, lineItems } = input;
-      if (!clientId && !clientInfo) throw new GraphQLError("Either clientId or clientInfo must be provided.");
+      try {
+        const { clientId, clientInfo, lineItems } = input;
+        if (!clientId && !clientInfo) throw new GraphQLError("Either clientId or clientInfo must be provided.");
 
-      let finalClientInfo = clientInfo;
-      if (clientId) {
-        const client = await Client.findById(clientId);
-        if (!client) throw new GraphQLError("Existing client not found.");
-        finalClientInfo = client.toObject();
+        let finalClientInfo: ClientInfoInput | object | undefined = clientInfo;
+        if (clientId) {
+          const client = await Client.findById(clientId);
+          if (!client) throw new GraphQLError("Existing client not found.");
+          finalClientInfo = client.toObject();
+        }
+
+        let totalAmount = 0;
+        const processedLineItems = await Promise.all(
+          lineItems.map(async (item) => {
+            const product = await Product.findById(item.productId);
+            if (!product) throw new GraphQLError(`Product with ID ${item.productId} not found.`);
+            const price = item.price ?? product.price;
+            const description = item.description ?? product.description;
+            totalAmount += price * item.quantity;
+            return { product: product._id, description, quantity: item.quantity, price };
+          })
+        );
+
+        const quotationNumber = await getNextSequenceValue("quotation");
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, "0");
+        const day = String(now.getDate()).padStart(2, "0");
+        const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+        const quotationId = `QUO-${year}${month}${day}-${quotationNumber}-${randomSuffix}`;
+
+        const newQuotation = new Quotation({
+          ...input,
+          client: clientId || undefined,
+          clientInfo: finalClientInfo,
+          lineItems: processedLineItems,
+          totalAmount,
+          quotationId,
+        });
+
+        await newQuotation.save();
+        return newQuotation;
+      } catch (error) {
+        if (error instanceof Error) { throw new GraphQLError(error.message); }
+        throw new GraphQLError("An unknown error occurred while creating the quotation.");
       }
-
-      let totalAmount = 0;
-      const processedLineItems = await Promise.all(
-        lineItems.map(async (item) => {
-          const product = await Product.findById(item.productId);
-          if (!product) throw new GraphQLError(`Product with ID ${item.productId} not found.`);
-          const price = item.price ?? product.price;
-          const description = item.description ?? product.description;
-          totalAmount += price * item.quantity;
-          return { product: product._id, description, quantity: item.quantity, price };
-        })
-      );
-
-      const quotationNumber = await getNextSequenceValue("quotation");
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, "0");
-      const day = String(now.getDate()).padStart(2, "0");
-      const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
-      const quotationId = `QUO-${year}${month}${day}-${quotationNumber}-${randomSuffix}`;
-
-      const newQuotation = new Quotation({
-        ...input,
-        client: clientId || undefined,
-        clientInfo: finalClientInfo,
-        lineItems: processedLineItems,
-        totalAmount,
-        quotationId,
-      });
-
-      await newQuotation.save();
-      return newQuotation;
     },
-
     updateQuotationStatus: async (_: unknown, { id, status }: { id: string; status: string }, context: MyContext) => {
       if (!context.user) throw new GraphQLError("Not authenticated");
       const updatedQuotation = await Quotation.findByIdAndUpdate(id, { status }, { new: true });
       if (!updatedQuotation) throw new GraphQLError("Quotation not found.");
       return updatedQuotation;
     },
-
     updateQuotation: async (_: unknown, { id, input }: { id: string; input: UpdateQuotationInput }, context: MyContext) => {
       if (!context.user) throw new GraphQLError("Not authenticated");
-      const existingQuotation = await Quotation.findById(id) as QuotationDocument | null;
-      if (!existingQuotation) throw new GraphQLError("Quotation not found.");
+      try {
+        const existingQuotation = await Quotation.findById(id) as QuotationDocument | null;
+        if (!existingQuotation) throw new GraphQLError("Quotation not found.");
 
-      const currentVersion = {
-        version: (existingQuotation.editHistory?.length || 0) + 1,
-        updatedAt: new Date(),
-        updatedBy: context.user._id,
-        reason: input.reason,
-        lineItems: existingQuotation.lineItems,
-        totalAmount: existingQuotation.totalAmount,
-        commercialTerms: existingQuotation.commercialTerms,
-      };
-      existingQuotation.editHistory.push(currentVersion);
+        const currentVersion = {
+          version: (existingQuotation.editHistory?.length || 0) + 1,
+          updatedAt: new Date(),
+          updatedBy: context.user._id,
+          reason: input.reason,
+          lineItems: existingQuotation.lineItems,
+          totalAmount: existingQuotation.totalAmount,
+          commercialTerms: existingQuotation.commercialTerms,
+        };
+        // --- FIX #2: Use a targeted 'as any' cast with an ESLint disable comment ---
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        existingQuotation.editHistory.push(currentVersion as any);
 
-      let newTotalAmount = 0;
-      const newProcessedLineItems = await Promise.all(
-        input.lineItems.map(async (item) => {
-          const product = await Product.findById(item.productId);
-          if (!product) throw new GraphQLError(`Product with ID ${item.productId} not found.`);
-          const price = item.price ?? product.price;
-          const description = item.description ?? product.description;
-          newTotalAmount += price * item.quantity;
-          return { product: product._id, description, quantity: item.quantity, price };
-        })
-      );
+        let newTotalAmount = 0;
+        const newProcessedLineItems = await Promise.all(
+          input.lineItems.map(async (item) => {
+            const product = await Product.findById(item.productId);
+            if (!product) throw new GraphQLError(`Product with ID ${item.productId} not found.`);
+            const price = item.price ?? product.price;
+            const description = item.description ?? product.description;
+            newTotalAmount += price * item.quantity;
+            return { product: product._id, description, quantity: item.quantity, price };
+          })
+        );
+        
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        existingQuotation.lineItems = newProcessedLineItems as any;
+        existingQuotation.totalAmount = newTotalAmount;
+        existingQuotation.validUntil = input.validUntil ? new Date(input.validUntil) : undefined;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        existingQuotation.commercialTerms = input.commercialTerms as any;
 
-      existingQuotation.lineItems = newProcessedLineItems;
-      existingQuotation.totalAmount = newTotalAmount;
-      existingQuotation.validUntil = input.validUntil ? new Date(input.validUntil) : undefined;
-      existingQuotation.commercialTerms = input.commercialTerms;
-
-      await existingQuotation.save();
-      return existingQuotation;
+        await existingQuotation.save();
+        return existingQuotation;
+      } catch (error) {
+        if (error instanceof Error) { throw new GraphQLError(error.message); }
+        throw new GraphQLError("An unknown error occurred while updating the quotation.");
+      }
     },
-
     approveQuotation: async (_: unknown, { quotationId }: { quotationId: string }, context: MyContext) => {
       if (!context.user) throw new GraphQLError("Not authenticated");
       const quotation = await Quotation.findById(quotationId) as QuotationDocument | null;
@@ -193,19 +219,16 @@ const quotationResolver = {
   },
   Quotation: {
     lineItems: async (parent: QuotationDocument) => {
-      if (parent.lineItems && parent.lineItems[0] && !(parent.lineItems[0].product as { name: string }).name) {
+        if (parent.lineItems?.[0]?.product && typeof parent.lineItems[0].product === 'object' && !('name' in parent.lineItems[0].product)) {
         await parent.populate("lineItems.product");
-      }
-      return parent.lineItems;
+        }
+        return parent.lineItems;
     },
     editHistory: async (parent: QuotationDocument) => {
-      if (parent.editHistory && parent.editHistory.length > 0) {
-        await parent.populate({
-          path: "editHistory",
-          populate: [{ path: "updatedBy" }, { path: "lineItems.product" }],
-        });
-      }
-      return parent.editHistory;
+        if (parent.editHistory && parent.editHistory.length > 0) {
+        await parent.populate({ path: "editHistory", populate: [{ path: "updatedBy" }, { path: "lineItems.product" }] });
+        }
+        return parent.editHistory;
     },
   },
 };

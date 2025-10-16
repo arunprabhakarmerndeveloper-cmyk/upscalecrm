@@ -4,14 +4,12 @@ import { MyContext } from '../route'; // Import our context type
 
 // --- TypeScript Interfaces for Resolver Arguments ---
 
-// Describes the structure for address inputs
 interface AddressInput {
   street?: string;
   city?: string;
   pincode?: string;
 }
 
-// Describes the input for the createClient mutation
 interface ClientInput {
   name: string;
   contactPerson?: string;
@@ -21,7 +19,6 @@ interface ClientInput {
   installationAddress?: AddressInput;
 }
 
-// For updates, all fields are optional
 type UpdateClientInput = Partial<ClientInput>;
 
 // --- Resolver Map ---
@@ -62,8 +59,8 @@ const clientResolver = {
         await newClient.save();
         return newClient.toObject();
       } catch (error) {
-        // Type-safe error handling for Mongoose duplicate key error
-        if (error instanceof Error && (error as any).code === 11000) {
+        // --- FIX: Use a type-safe check for the Mongoose error code ---
+        if (error && typeof error === 'object' && 'code' in error && error.code === 11000) {
           throw new GraphQLError('A client with this phone or email already exists.');
         }
         if (error instanceof Error) {

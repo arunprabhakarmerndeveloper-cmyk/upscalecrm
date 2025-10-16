@@ -12,78 +12,53 @@ import {
   useMutation,
   useQuery,
   gql,
-  ApolloClient,
-  NormalizedCacheShape,
   FetchResult,
 } from "@apollo/client";
 import { useRouter, usePathname } from "next/navigation";
 
 // --- TypeScript Interfaces ---
-
-// It's best practice to define the user shape for your frontend here.
-// This can be exported and used in other components like Header.tsx.
 export interface AuthUser {
   id: string;
   name: string;
   email: string;
   role: 'Admin' | 'User';
 }
-
-// Defines the shape of the variables for the login mutation
 interface LoginInput {
   email: string;
   password: string;
 }
-
-// Defines the shape of the data returned by the LOGIN_MUTATION
 interface LoginData {
   login: {
     token: string;
     user: AuthUser;
   };
 }
-
-// Defines the shape of the data returned by the ME_QUERY
 interface MeData {
   me: AuthUser;
 }
-
-// Define the final, fully-typed shape of the context
 interface AuthContextType {
   user: AuthUser | null;
   isLoggedIn: boolean;
-  loading: boolean; // Represents the login mutation loading state
-  authLoading: boolean; // Represents the initial auth check loading state
+  loading: boolean;
+  authLoading: boolean;
   error?: string;
-  // The login function now has a precise signature
   login: (variables: { input: LoginInput }) => Promise<FetchResult<LoginData>>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// GraphQL queries and mutations
+// --- GraphQL ---
 const ME_QUERY = gql`
   query Me {
-    me {
-      id
-      name
-      email
-      role
-    }
+    me { id name email role }
   }
 `;
-
 const LOGIN_MUTATION = gql`
   mutation LoginUser($input: LoginInput!) {
     login(input: $input) {
       token
-      user {
-        id
-        name
-        email
-        role
-      }
+      user { id name email role }
     }
   }
 `;
@@ -105,12 +80,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push("/login");
   }, [client, router]);
 
+  // Effect for initial authentication check (runs once)
   useEffect(() => {
     const checkUserStatus = async () => {
       const token = localStorage.getItem("authToken");
       if (token) {
         try {
-          // Type the client.query call
           const { data } = await client.query<MeData>({ query: ME_QUERY });
           if (data.me) {
             setUser(data.me);
@@ -121,31 +96,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.error("Authentication check failed:", error);
           logout();
         }
-      } else {
-        if (pathname !== "/login") {
-          router.push("/login");
-        }
       }
       setAuthLoading(false);
     };
     checkUserStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // The empty array is correct here for a one-time check
+  }, []);
 
-  // Type the useMutation hook
   const [loginMutation, { loading: loginLoading, error: loginError }] =
     useMutation<LoginData, { input: LoginInput }>(LOGIN_MUTATION, {
       onCompleted: (data) => {
         const { token, user: loggedInUser } = data.login;
         localStorage.setItem("authToken", token);
         setUser(loggedInUser);
-        // Type the client.writeQuery call
         client.writeQuery<MeData>({ query: ME_QUERY, data: { me: loggedInUser } });
         router.push("/");
       },
     });
 
-  // Type the variables for the login function
   const login = useCallback(
     async (variables: { input: LoginInput }) => {
       return loginMutation({ variables });
@@ -155,18 +123,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const isLoggedIn = !!user;
 
+  // --- THIS IS THE FIX ---
+  // This new useEffect handles all redirection logic.
+  // It runs AFTER the component renders and only when its dependencies change.
+  useEffect(() => {
+    // Don't do anything until the initial authentication check is complete
+    if (authLoading) {
+      return;
+    }
+
+    // If the user is logged in but is on the login page, redirect to home.
+    if (isLoggedIn && pathname === "/login") {
+      router.replace("/");
+    }
+
+    // If the user is NOT logged in and is NOT on the login page, redirect to login.
+    if (!isLoggedIn && pathname !== "/login") {
+      router.replace("/login");
+    }
+  }, [isLoggedIn, authLoading, pathname, router]);
+
+
+  // While checking auth, show a global loading screen.
+  // This is safe to keep in the render body.
   if (authLoading) {
     return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}>Authenticating...</div>;
   }
-  if (isLoggedIn && pathname === "/login") {
-    router.replace("/");
-    return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}>Redirecting...</div>;
-  }
+
+  // If we are on a protected page and not logged in, we show a "Redirecting..."
+  // message while the useEffect above does its work.
   if (!isLoggedIn && pathname !== "/login") {
-    router.replace("/login");
     return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}>Redirecting...</div>;
   }
 
+  // If we are logged in but on the login page, show a "Redirecting..." message.
+  if (isLoggedIn && pathname === "/login") {
+    return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}>Redirecting...</div>;
+  }
+  
   const value = {
     user,
     isLoggedIn,

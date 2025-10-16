@@ -34,7 +34,6 @@ interface DashboardAmc {
   serviceVisits: DashboardServiceVisit[];
 }
 
-// The main data interface for the entire query
 interface GetDashboardData {
   clients: { id: string }[];
   quotations: DashboardQuotation[];
@@ -72,7 +71,7 @@ const GET_DASHBOARD_DATA = gql`
   }
 `;
 
-// A custom hook for responsive design (unchanged)
+// --- Custom Hook (unchanged) ---
 const useMediaQuery = (query: string) => {
   const [matches, setMatches] = useState(false);
   useEffect(() => {
@@ -89,11 +88,15 @@ const useMediaQuery = (query: string) => {
 
 // --- Main Dashboard Component ---
 export default function DashboardPage() {
-  const { user, loading: authLoading } = useAuth();
-  // Apply the GetDashboardData interface for a fully typed `data` object
-  const { loading: dataLoading, error, data, refetch } = useQuery<GetDashboardData>(GET_DASHBOARD_DATA, {
-    skip: !user,
-  });
+  const { user } = useAuth();
+  
+
+  const { loading: dataLoading, error, data, refetch } = useQuery<GetDashboardData>(
+    GET_DASHBOARD_DATA,
+    {
+      skip: !user,
+    }
+  );
 
   useEffect(() => {
     if (user) refetch();
@@ -141,7 +144,7 @@ export default function DashboardPage() {
         Welcome back, {user?.name}!
       </h1>
       <p style={{ marginTop: '0.5rem', color: '#6b7280' }}>
-        Here's a summary of your business activity.
+        Here&apos;s a summary of your business activity.
       </p>
 
       <div style={{ marginTop: '2rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem' }}>
@@ -158,9 +161,6 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-// --- Typed Sub-components ---
-
 interface StatCardProps {
   title: string;
   value: number | undefined | null;
@@ -177,10 +177,7 @@ const StatCard = ({ title, value, icon, color = '#3b82f6' }: StatCardProps) => (
   </div>
 );
 
-interface RecentQuotationsProps {
-  quotations: DashboardQuotation[] | undefined;
-}
-const RecentQuotations = ({ quotations }: RecentQuotationsProps) => (
+const RecentQuotations = ({ quotations }: { quotations?: DashboardQuotation[] }) => (
     <div style={{ backgroundColor: '#fff', borderRadius: '0.75rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
         <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h2 style={{ fontSize: '1.125rem', fontWeight: '600' }}>Recent Quotations</h2>
@@ -200,10 +197,7 @@ const RecentQuotations = ({ quotations }: RecentQuotationsProps) => (
     </div>
 );
 
-interface RecentInvoicesProps {
-  invoices: DashboardInvoice[] | undefined;
-}
-const RecentInvoices = ({ invoices }: RecentInvoicesProps) => {
+const RecentInvoices = ({ invoices }: { invoices?: DashboardInvoice[] }) => {
     const recentOverdue = useMemo(() => invoices?.filter(inv => {
         const today = new Date(); today.setHours(0,0,0,0);
         const dueDate = new Date(Number(inv.dueDate));
@@ -237,7 +231,6 @@ const StatusBadge = ({ status }: { status: string }) => {
     return ( <span style={{ ...style, padding: '0.25rem 0.75rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: '600', textTransform: 'capitalize' }}>{status}</span> );
 };
 
-// --- SVG Icon Components (unchanged) ---
 const UsersIcon = () => <svg style={{ width: '24px', height: '24px' }} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M15 21a6 6 0 00-9-5.197" /></svg>;
 const DocumentTextIcon = () => <svg style={{ width: '24px', height: '24px' }} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>;
 const ExclamationIcon = () => <svg style={{ width: '24px', height: '24px' }} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>;

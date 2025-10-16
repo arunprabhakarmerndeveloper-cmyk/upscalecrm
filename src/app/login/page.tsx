@@ -12,11 +12,12 @@ export default function LoginPage() {
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    // 3. Call the centralized login function from the context
+    
+    // --- THIS IS THE FIX ---
+    // The 'variables' wrapper is removed. We now pass the 'input' object directly,
+    // which matches the new, type-safe login function in our AuthContext.
     login({
-      variables: {
-        input: { email: email.trim(), password: password.trim() },
-      },
+      input: { email: email.trim(), password: password.trim() },
     });
   };
 
@@ -75,4 +76,3 @@ export default function LoginPage() {
     </div>
   );
 }
-

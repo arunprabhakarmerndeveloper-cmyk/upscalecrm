@@ -34,7 +34,7 @@ const handler = startServerAndCreateNextHandler(server, {
         const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
         const user = await User.findById(decoded.userId);
         return { user };
-      } catch (e) {
+      } catch (_) {
         return { user: null };
       }
     }
@@ -42,4 +42,10 @@ const handler = startServerAndCreateNextHandler(server, {
   },
 });
 
-export { handler as GET, handler as POST };
+export async function GET(request: NextRequest) {
+  return handler(request);
+}
+
+export async function POST(request: NextRequest) {
+  return handler(request);
+}

@@ -146,16 +146,16 @@ const StatusBadge = ({ status }: { status: string }) => {
     );
 };
 
-const buttonStyle: React.CSSProperties = {
-    backgroundColor: '#2563eb',
-    color: '#fff',
-    fontWeight: '600',
-    padding: '0.6rem 1.2rem',
-    borderRadius: '0.375rem',
-    border: 'none',
-    cursor: 'pointer',
-    textDecoration: 'none'
-};
+// const buttonStyle: React.CSSProperties = {
+//     backgroundColor: '#2563eb',
+//     color: '#fff',
+//     fontWeight: '600',
+//     padding: '0.6rem 1.2rem',
+//     borderRadius: '0.375rem',
+//     border: 'none',
+//     cursor: 'pointer',
+//     textDecoration: 'none'
+// };
 
 const actionButtonStyle: React.CSSProperties = {
     backgroundColor: '#fff',

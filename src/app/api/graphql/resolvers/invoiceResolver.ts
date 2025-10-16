@@ -100,7 +100,6 @@ const invoiceResolver = {
         const invoiceNumber = await getNextSequenceValue("invoice");
         const newInvoiceId = `INV-${new Date().getFullYear()}-${invoiceNumber}`;
         
-        // No 'as any' needed here because `amc` is now typed correctly
         const productNames = amc.productInstances.map(p => p.product.name).join(', ');
 
         const newInvoice = new Invoice({

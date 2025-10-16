@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import { Document, Model } from 'mongoose';
+import { Document } from 'mongoose';
 import User from '@/models/User'; // Assuming this is your Mongoose User model
 import { GraphQLError } from 'graphql';
 import { MyContext } from '../route'; // Import the context type

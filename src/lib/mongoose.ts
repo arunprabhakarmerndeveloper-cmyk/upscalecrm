@@ -14,19 +14,15 @@ if (!MONGODB_URI) {
  * during API Route usage.
  */
 
-// 1. Define an interface for our cached mongoose object.
 interface MongooseCache {
   conn: Mongoose | null;
   promise: Promise<Mongoose> | null;
 }
 
-// 2. Augment the NodeJS global type to declare a `mongoose` property.
-// This tells TypeScript about the new property we're adding.
 declare global {
   var mongoose: MongooseCache;
 }
 
-// 3. Use the global cache or create a new one.
 let cached: MongooseCache = global.mongoose;
 
 if (!cached) {
@@ -44,21 +40,21 @@ async function connectDB(): Promise<Mongoose> {
       bufferCommands: false,
     };
 
-    cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongooseInstance) => {
-      console.log("=> new database connection established");
-      return mongooseInstance;
-    });
+    // --- THIS IS THE FIX ---
+    // Add the non-null assertion operator (!) to tell TypeScript we've already checked MONGODB_URI.
+    cached.promise = mongoose.connect(MONGODB_URI!, opts);
   }
 
   try {
     cached.conn = await cached.promise;
-  } catch (e: unknown) { // 4. Type the catch block error as `unknown`.
+    if (cached.conn) {
+        console.log("=> new database connection established");
+    }
+  } catch (e: unknown) {
     cached.promise = null;
     throw e;
   }
-
-  // If the connection is successful, cached.conn will be populated.
-  // The non-null assertion (!) tells TypeScript to trust that it's not null here.
+  
   return cached.conn!;
 }
 
