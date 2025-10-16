@@ -14,18 +14,49 @@ import {
   gql,
   ApolloClient,
   NormalizedCacheShape,
+  FetchResult,
 } from "@apollo/client";
 import { useRouter, usePathname } from "next/navigation";
-import { IUser } from "@/models/User";
 
-// Define the shape of the context
+// --- TypeScript Interfaces ---
+
+// It's best practice to define the user shape for your frontend here.
+// This can be exported and used in other components like Header.tsx.
+export interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+  role: 'Admin' | 'User';
+}
+
+// Defines the shape of the variables for the login mutation
+interface LoginInput {
+  email: string;
+  password: string;
+}
+
+// Defines the shape of the data returned by the LOGIN_MUTATION
+interface LoginData {
+  login: {
+    token: string;
+    user: AuthUser;
+  };
+}
+
+// Defines the shape of the data returned by the ME_QUERY
+interface MeData {
+  me: AuthUser;
+}
+
+// Define the final, fully-typed shape of the context
 interface AuthContextType {
-  user: IUser | null;
+  user: AuthUser | null;
   isLoggedIn: boolean;
   loading: boolean; // Represents the login mutation loading state
   authLoading: boolean; // Represents the initial auth check loading state
   error?: string;
-  login: (variables: any) => Promise<any>;
+  // The login function now has a precise signature
+  login: (variables: { input: LoginInput }) => Promise<FetchResult<LoginData>>;
   logout: () => void;
 }
 
@@ -58,15 +89,13 @@ const LOGIN_MUTATION = gql`
 `;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<IUser | null>(null);
-  const [authLoading, setAuthLoading] = useState(true); // Manages the initial auth check
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
 
-  // We get the client instance from a hook that doesn't run its query immediately
-  const { client } = useQuery(ME_QUERY, { skip: true });
+  const { client } = useQuery<MeData>(ME_QUERY, { skip: true });
 
-  // Central, reusable logout function
   const logout = useCallback(() => {
     setUser(null);
     if (typeof window !== "undefined") {
@@ -76,26 +105,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push("/login");
   }, [client, router]);
 
-  // This effect runs ONLY ONCE on initial application load to check for a token
   useEffect(() => {
     const checkUserStatus = async () => {
       const token = localStorage.getItem("authToken");
       if (token) {
         try {
-          const { data } = await client.query({ query: ME_QUERY });
+          // Type the client.query call
+          const { data } = await client.query<MeData>({ query: ME_QUERY });
           if (data.me) {
             setUser(data.me);
           } else {
-            // Token is present but invalid (server returned no user)
             logout();
           }
         } catch (error) {
-          // Token is expired or malformed
           console.error("Authentication check failed:", error);
           logout();
         }
       } else {
-        // No token, redirect to login if not already there
         if (pathname !== "/login") {
           router.push("/login");
         }
@@ -103,77 +129,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAuthLoading(false);
     };
     checkUserStatus();
-  }, []); // The empty dependency array [] is crucial. This runs only once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // The empty array is correct here for a one-time check
 
-  // The login mutation logic, now centralized here
+  // Type the useMutation hook
   const [loginMutation, { loading: loginLoading, error: loginError }] =
-    useMutation(LOGIN_MUTATION, {
+    useMutation<LoginData, { input: LoginInput }>(LOGIN_MUTATION, {
       onCompleted: (data) => {
         const { token, user: loggedInUser } = data.login;
         localStorage.setItem("authToken", token);
         setUser(loggedInUser);
-        client.writeQuery({ query: ME_QUERY, data: { me: loggedInUser } });
+        // Type the client.writeQuery call
+        client.writeQuery<MeData>({ query: ME_QUERY, data: { me: loggedInUser } });
         router.push("/");
       },
     });
 
+  // Type the variables for the login function
   const login = useCallback(
-    async (variables: any) => {
-      return loginMutation(variables);
+    async (variables: { input: LoginInput }) => {
+      return loginMutation({ variables });
     },
     [loginMutation]
   );
 
   const isLoggedIn = !!user;
 
-  // Prevent flashing of blank screen
   if (authLoading) {
-    return (
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          height: "100vh",
-        }}
-      >
-        Authenticating...
-      </div>
-    );
+    return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}>Authenticating...</div>;
   }
-
-  // Redirect if logged in but on /login
   if (isLoggedIn && pathname === "/login") {
     router.replace("/");
-    return (
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          height: "100vh",
-        }}
-      >
-        Redirecting...
-      </div>
-    );
+    return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}>Redirecting...</div>;
   }
-
-  // Redirect to /login if not logged in and not already there
   if (!isLoggedIn && pathname !== "/login") {
     router.replace("/login");
-    return (
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          height: "100vh",
-        }}
-      >
-        Redirecting...
-      </div>
-    );
+    return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}>Redirecting...</div>;
   }
 
   const value = {
@@ -189,7 +180,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-// Custom hook to use the auth context
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
