@@ -25,7 +25,7 @@ export default function LoginPage() {
     <div style={{ minHeight: "100vh", display: "flex", justifyContent: "center", alignItems: "center", background: "linear-gradient(135deg, #667eea, #764ba2)", padding: "20px" }}>
       <div style={{ width: "100%", maxWidth: "400px", backgroundColor: "#ffffff", borderRadius: "12px", boxShadow: "0 10px 25px rgba(0,0,0,0.1)", padding: "40px", display: "flex", flexDirection: "column", gap: "20px" }}>
         <h1 style={{ fontSize: "1.75rem", fontWeight: "700", textAlign: "center", color: "#333333" }}>
-          AquaPure CRM
+          Upscale Water Solutions CRM
         </h1>
         <p style={{ textAlign: "center", color: "#6b7280", fontSize: "0.9rem", marginBottom: "10px" }}>
           Welcome back! Please login to your account.
