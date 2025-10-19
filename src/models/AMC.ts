@@ -1,8 +1,9 @@
-import mongoose, { Schema, Document } from 'mongoose';
-import { IClient, IClientInfo } from './Client';
+import mongoose, { Schema, Document, Model } from 'mongoose';
+import { IClient } from './Client';
 import { IProduct } from './Product';
 import { IUser } from './User';
-import { IInvoice } from './Invoice'; // --- 1. Import the Invoice interface ---
+import { IInvoice } from './Invoice';
+import { IClientInfo } from './Quotation'; // Re-use the corrected interface
 
 export interface IProductInstance {
   product: IProduct['_id'];
@@ -14,7 +15,7 @@ export interface IAMC extends Document {
   amcId: string;
   client: IClient['_id'];
   clientInfo: IClientInfo;
-  productInstances: IProductInstance[]; // This is correctly an array
+  productInstances: IProductInstance[];
   startDate: Date;
   endDate: Date;
   contractAmount: number;
@@ -28,16 +29,18 @@ export interface IAMC extends Document {
   status: 'Active' | 'Expired' | 'Cancelled';
   createdBy: IUser['_id'];
   createdAt: Date;
-  originatingInvoice?: IInvoice['_id']; // --- 2. Add the optional link ---
+  originatingInvoice?: IInvoice['_id'];
 }
 
-const AMCSchema: Schema = new Schema({
+const AMCSchema: Schema<IAMC> = new Schema({
   amcId: { type: String, required: true, unique: true },
   client: { type: Schema.Types.ObjectId, ref: 'Client', required: true },
   clientInfo: {
     name: { type: String, required: true },
     phone: { type: String, required: true },
-    installationAddress: { street: String, city: String, pincode: String },
+    email: String,
+    billingAddress: String,
+    installationAddress: String,
   },
   productInstances: [{
     product: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
@@ -56,12 +59,13 @@ const AMCSchema: Schema = new Schema({
   }],
   status: { type: String, enum: ['Active', 'Expired', 'Cancelled'], default: 'Active' },
   createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-  originatingInvoice: { type: Schema.Types.ObjectId, ref: 'Invoice' }, // --- 3. Add the field to the schema ---
+  originatingInvoice: { type: Schema.Types.ObjectId, ref: 'Invoice' },
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
 });
 
-export default mongoose.models.AMC || mongoose.model<IAMC>('AMC', AMCSchema);
+const AMC: Model<IAMC> = mongoose.models.AMC || mongoose.model<IAMC>('AMC', AMCSchema);
 
+export default AMC;

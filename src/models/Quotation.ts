@@ -1,26 +1,16 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
-// --- FIX 1: Removed the problematic IClientInfo import ---
 import { IClient } from './Client';
 import { IProduct } from './Product';
 import { IUser } from './User';
 
-// --- FIX 2: Defined IClientInfo directly in this file ---
-// This interface describes the shape of the client data stored directly on the quotation
+// --- THIS IS THE FIX: Addresses are now simple strings ---
 export interface IClientInfo {
   name: string;
   contactPerson?: string;
   phone: string;
   email?: string;
-  billingAddress?: {
-    street?: string;
-    city?: string;
-    pincode?: string;
-  };
-  installationAddress?: {
-    street?: string;
-    city?: string;
-    pincode?: string;
-  };
+  billingAddress?: string;
+  installationAddress?: string;
 }
 
 export interface ILineItem {
@@ -47,9 +37,10 @@ export interface ICommercialTerm {
 export interface IQuotation extends Document {
   quotationId: string;
   client?: IClient['_id'];
-  clientInfo: IClientInfo; // Now correctly uses the locally defined interface
+  clientInfo: IClientInfo;
   status: 'Draft' | 'Sent' | 'Approved' | 'Rejected';
   lineItems: ILineItem[];
+  imageUrls?: string[];
   totalAmount: number;
   validUntil: Date;
   commercialTerms?: ICommercialTerm[];
@@ -59,13 +50,14 @@ export interface IQuotation extends Document {
 const QuotationSchema: Schema<IQuotation> = new Schema({
   quotationId: { type: String, required: true, unique: true },
   client: { type: Schema.Types.ObjectId, ref: 'Client', required: false },
+  // --- THIS IS THE FIX: Schema updated to use simple strings for addresses ---
   clientInfo: {
     name: { type: String, required: true },
     contactPerson: String,
     phone: { type: String, required: true },
     email: String,
-    billingAddress: { street: String, city: String, pincode: String },
-    installationAddress: { street: String, city: String, pincode: String },
+    billingAddress: String,
+    installationAddress: String,
   },
   status: {
     type: String,
@@ -78,6 +70,7 @@ const QuotationSchema: Schema<IQuotation> = new Schema({
     quantity: { type: Number, default: 1 },
     price: Number,
   }],
+  imageUrls: [String],
   totalAmount: { type: Number },
   validUntil: { type: Date },
   commercialTerms: [{
@@ -98,7 +91,6 @@ const QuotationSchema: Schema<IQuotation> = new Schema({
   toObject: { virtuals: true }
 });
 
-// --- FIX 3: Removed the problematic re-export ---
 const Quotation: Model<IQuotation> = mongoose.models.Quotation || mongoose.model<IQuotation>('Quotation', QuotationSchema);
 
 export default Quotation;

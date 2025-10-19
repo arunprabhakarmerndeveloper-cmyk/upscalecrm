@@ -3,10 +3,10 @@
 import { useQuery, gql } from '@apollo/client';
 import Link from 'next/link';
 import { useAuth } from '@/lib/AuthContext';
+import { useState, useMemo, ChangeEvent, CSSProperties } from 'react';
 
 // --- TypeScript Interfaces ---
 
-// Describes a single quotation object in the list
 interface QuotationListItem {
   id: string;
   quotationId: string;
@@ -14,11 +14,12 @@ interface QuotationListItem {
   totalAmount: number;
   clientInfo: {
     name: string;
+    phone: string; // Added phone
+    email: string | null; // Added email
   };
   createdAt: string | number;
 }
 
-// Describes the shape of the entire data object returned by the query
 interface GetQuotationsData {
   quotations: QuotationListItem[];
 }
@@ -33,6 +34,8 @@ const GET_QUOTATIONS = gql`
       totalAmount
       clientInfo {
         name
+        phone # Added phone
+        email # Added email
       }
       createdAt
     }
@@ -41,8 +44,24 @@ const GET_QUOTATIONS = gql`
 
 export default function QuotationsListPage() {
   const { loading: authLoading } = useAuth();
-  // Apply the GetQuotationsData interface for a fully typed `data` object
   const { loading: dataLoading, error, data } = useQuery<GetQuotationsData>(GET_QUOTATIONS);
+
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const filteredQuotations = useMemo(() => {
+    if (!data?.quotations) return [];
+    if (!searchTerm) return data.quotations;
+
+    const lowercasedTerm = searchTerm.toLowerCase();
+    return data.quotations.filter(q => 
+      q.quotationId.toLowerCase().includes(lowercasedTerm) ||
+      q.clientInfo.name.toLowerCase().includes(lowercasedTerm) ||
+      q.status.toLowerCase().includes(lowercasedTerm) ||
+      q.clientInfo.phone.includes(lowercasedTerm) || // Added phone to search
+      (q.clientInfo.email && q.clientInfo.email.toLowerCase().includes(lowercasedTerm)) // Added email to search
+    );
+  }, [data, searchTerm]);
+
 
   const formatDate = (dateValue: string | number | null | undefined) => {
     if (!dateValue) return '—';
@@ -65,52 +84,90 @@ export default function QuotationsListPage() {
   }
 
   return (
-    <div style={{ maxWidth: '1280px', margin: 'auto', padding: '2rem 1rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-        <h1 style={{ fontSize: '2rem', fontWeight: '700' }}>Quotations</h1>
-        <Link href="/quotations/new" style={{ ...buttonStyle }}>
-          + Add New Quotation
-        </Link>
+    <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: 'calc(80vh)', // Adjust this value based on your main header/footer height
+        maxWidth: '1400px',
+        margin: 'auto',
+    }}>
+      {/* --- Non-scrolling Header Section --- */}
+      <div style={{ flexShrink: 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 0', flexWrap: 'wrap', gap: '1rem' }}>
+          <h1 style={{ fontSize: '2rem', fontWeight: '700' }}>Quotations</h1>
+          <Link href="/quotations/new" style={buttonStyle}>
+            + Add New Quotation
+          </Link>
+        </div>
+        <div style={{ margin: '1rem 0', maxWidth: '400px', position: 'relative' }}>
+            <div style={{ position: 'absolute', top: '50%', left: '12px', transform: 'translateY(-50%)', color: '#9ca3af', zIndex: 1 }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            </div>
+            <input 
+                type="text"
+                placeholder="Search by ID, client, phone, email..."
+                value={searchTerm}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+                style={{
+                    width: '100%',
+                    padding: '0.75rem 1rem 0.75rem 2.5rem',
+                    borderRadius: '0.5rem',
+                    border: '1px solid #d1d5db',
+                    fontSize: '1rem',
+                    outline: 'none',
+                    boxShadow: '0 1px 2px 0 rgba(0,0,0,0.05)'
+                }}
+            />
+        </div>
       </div>
 
-      <div style={{ backgroundColor: '#fff', borderRadius: '0.75rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead style={{ backgroundColor: '#f9fafb' }}>
-            <tr>
-              <th style={tableHeaderStyle}>Quotation ID</th>
-              <th style={tableHeaderStyle}>Client Name</th>
-              <th style={tableHeaderStyle}>Date</th>
-              <th style={tableHeaderStyle}>Status</th>
-              <th style={{...tableHeaderStyle, textAlign: 'right' }}>Amount</th>
-              <th style={{...tableHeaderStyle, textAlign: 'center' }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data?.quotations && data.quotations.length > 0 ? (
-              // 'q' is now automatically typed as QuotationListItem
-              data.quotations.map((q) => (
-                <tr key={q.id} style={{ borderTop: '1px solid #e5e7eb' }}>
-                  <td style={tableCellStyle}>{q.quotationId}</td>
-                  <td style={tableCellStyle}>{q.clientInfo.name}</td>
-                  <td style={tableCellStyle}>{formatDate(q.createdAt)}</td>
-                  <td style={tableCellStyle}><StatusBadge status={q.status} /></td>
-                  <td style={{...tableCellStyle, textAlign: 'right', fontWeight: '500' }}>
-                    {new Intl.NumberFormat('en-AE', { style: 'currency', currency: 'AED' }).format(q.totalAmount)}
-                  </td>
-                  <td style={{...tableCellStyle, textAlign: 'center'}}>
-                    <Link href={`/quotations/${q.id}`} style={{...actionButtonStyle}}>
-                      View
-                    </Link>
-                  </td>
+      {/* --- Scrollable Table Container --- */}
+      <div style={{ flexGrow: 1, overflow: 'hidden', backgroundColor: '#fff', borderRadius: '0.75rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', border: '1px solid #e5e7eb' }}>
+        <div style={{ height: '100%', overflowY: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead style={{ position: 'sticky', top: 0, zIndex: 10, backgroundColor: '#f9fafb' }}>
+                <tr>
+                  <th style={tableHeaderStyle}>Quotation ID</th>
+                  <th style={tableHeaderStyle}>Client</th>
+                  <th style={tableHeaderStyle}>Phone</th>
+                  <th style={tableHeaderStyle}>Date</th>
+                  <th style={tableHeaderStyle}>Status</th>
+                  <th style={{...tableHeaderStyle, textAlign: 'right' }}>Amount</th>
+                  <th style={{...tableHeaderStyle, textAlign: 'center' }}>Actions</th>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={6} style={{ textAlign: 'center', padding: '2rem' }}>No quotations found.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              </thead>
+              <tbody>
+                {filteredQuotations.length > 0 ? (
+                  filteredQuotations.map((q) => (
+                    <tr key={q.id} style={tableRowStyle}>
+                      <td style={tableCellStyle}>{q.quotationId}</td>
+                      <td style={tableCellStyle}>
+                        <div>
+                            <p style={{ fontWeight: '600' }}>{q.clientInfo.name}</p>
+                            {q.clientInfo.email && <p style={{ fontSize: '0.875rem', color: '#6b7280' }}>{q.clientInfo.email}</p>}
+                        </div>
+                      </td>
+                      <td style={tableCellStyle}>{q.clientInfo.phone}</td>
+                      <td style={tableCellStyle}>{formatDate(q.createdAt)}</td>
+                      <td style={tableCellStyle}><StatusBadge status={q.status} /></td>
+                      <td style={{...tableCellStyle, textAlign: 'right', fontWeight: '500' }}>
+                        {new Intl.NumberFormat('en-AE', { style: 'currency', currency: 'AED' }).format(q.totalAmount)}
+                      </td>
+                      <td style={{...tableCellStyle, textAlign: 'center'}}>
+                        <Link href={`/quotations/${q.id}`} style={{...actionButtonStyle}}>
+                          View
+                        </Link>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>No quotations found.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+        </div>
       </div>
     </div>
   );
@@ -158,15 +215,19 @@ const actionButtonStyle: React.CSSProperties = {
 
 const tableHeaderStyle: React.CSSProperties = {
     textAlign: 'left',
-    padding: '0.75rem 1.5rem',
+    padding: '1rem 1.5rem',
     color: '#6b7280',
     fontSize: '0.75rem',
     textTransform: 'uppercase',
-    letterSpacing: '0.05em'
+    letterSpacing: '0.05em',
+    borderBottom: '1px solid #e5e7eb'
 };
 
 const tableCellStyle: React.CSSProperties = {
     padding: '1rem 1.5rem',
     color: '#374151',
-    verticalAlign: 'middle'
+    verticalAlign: 'top' // Changed to 'top' to align with the multi-line client info
 };
+
+const tableRowStyle: React.CSSProperties = { borderTop: '1px solid #f3f4f6' };
+

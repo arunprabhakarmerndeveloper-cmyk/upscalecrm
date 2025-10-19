@@ -1,5 +1,13 @@
 const invoiceSchema = `
-  # The LineItem and ClientInfo types are already defined and will be merged.
+  # --- FIX: Explicitly define ClientInfo with simple string addresses ---
+  # This ensures consistency when schemas are merged.
+  type ClientInfo {
+    name: String!
+    phone: String!
+    email: String
+    billingAddress: String
+    installationAddress: String
+  }
 
   type Invoice {
     id: ID!
@@ -7,7 +15,7 @@ const invoiceSchema = `
     client: Client!
     clientInfo: ClientInfo!
     quotation: Quotation
-    amc: AMC # --- NEW: Link to an AMC ---
+    amc: AMC
     status: String!
     issueDate: String!
     dueDate: String
@@ -15,7 +23,7 @@ const invoiceSchema = `
     lineItems: [LineItem!]!
     totalAmount: Float!
     amountPaid: Float!
-    balanceDue: Float! # A calculated field
+    balanceDue: Float!
     paymentDate: String
     termsOfService: String
     createdAt: String!
@@ -34,10 +42,7 @@ const invoiceSchema = `
 
   extend type Mutation {
     createInvoiceFromQuotation(quotationId: ID!, dueDate: String, installationDate: String): Invoice!
-    
-    # --- NEW: Mutation to create an invoice directly from an AMC ---
     createInvoiceFromAMC(amcId: ID!, dueDate: String): Invoice!
-
     recordPayment(input: RecordPaymentInput!): Invoice!
   }
 `;

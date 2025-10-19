@@ -3,14 +3,16 @@
 import { useQuery, gql } from '@apollo/client';
 import Link from 'next/link';
 import { useAuth } from '@/lib/AuthContext';
+import React from 'react'; // Import React for CSSProperties
 
 // --- TypeScript Interfaces ---
 
 // Describes a single product instance within an AMC
 interface ProductInstance {
+  // --- ✅ FIX: Product can now be null if it was deleted ---
   product: {
     name: string;
-  };
+  } | null;
 }
 
 // Describes the structure of a single AMC object in the list
@@ -53,10 +55,8 @@ const GET_AMCS = gql`
 
 export default function AMCsListPage() {
   const { loading: authLoading } = useAuth();
-  // Apply the GetAmcsData interface for full type safety on `data`
   const { loading: dataLoading, error, data } = useQuery<GetAmcsData>(GET_AMCS);
 
-  // Type the dateValue parameter
   const formatDate = (dateValue: string | number | null | undefined) => {
     if (!dateValue) return '—';
     const timestamp = typeof dateValue === 'number' ? dateValue : Number(dateValue);
@@ -102,14 +102,17 @@ export default function AMCsListPage() {
             </thead>
             <tbody>
               {data?.amcs && data.amcs.length > 0 ? (
-                // 'amc' is now automatically typed as AmcListItem
                 data.amcs.map((amc, index) => (
                   <tr key={amc.id} style={{ borderTop: index > 0 ? '1px solid #e5e7eb' : 'none' }}>
                     <td style={tableCellStyle}>{amc.amcId}</td>
                     <td style={tableCellStyle}>{amc.clientInfo.name}</td>
                     <td style={tableCellStyle}>
-                      {/* 'p' is now automatically typed as ProductInstance */}
-                      {amc.productInstances.map((p) => p.product.name).join(', ')}
+                      {/* --- ✅ FIX: Safely map over product names --- */}
+                      {/* This now handles cases where a product is null without crashing. */}
+                      {amc.productInstances
+                        .map((p) => p.product?.name) // Use optional chaining
+                        .filter(Boolean) // Remove any null/undefined entries
+                        .join(', ')}
                     </td>
                     <td style={tableCellStyle}>{formatDate(amc.startDate)}</td>
                     <td style={tableCellStyle}>{formatDate(amc.endDate)}</td>
@@ -136,7 +139,6 @@ export default function AMCsListPage() {
 
 // --- Typed Helper Components & Styles ---
 const StatusBadge = ({ status }: { status: string }) => {
-    // A safer type for an object with string keys and CSS property values
     const statusStyles: Record<string, React.CSSProperties> = { 
         Active: { background: '#d1fae5', color: '#065f46' }, 
         Expired: { background: '#fee2e2', color: '#991b1b' }, 
@@ -150,3 +152,4 @@ const buttonStyle: React.CSSProperties = { backgroundColor: '#2563eb', color: '#
 const actionButtonStyle: React.CSSProperties = { backgroundColor: '#fff', color: '#374151', fontWeight: '500', padding: '0.4rem 0.8rem', borderRadius: '0.375rem', border: '1px solid #d1d5db', cursor: 'pointer', textDecoration: 'none', fontSize: '0.875rem' };
 const tableHeaderStyle: React.CSSProperties = { textAlign: 'left', padding: '0.75rem 1.5rem', color: '#6b7280', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' };
 const tableCellStyle: React.CSSProperties = { padding: '1rem 1.5rem', color: '#374151', verticalAlign: 'middle', whiteSpace: 'nowrap' };
+

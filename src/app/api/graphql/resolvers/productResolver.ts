@@ -1,21 +1,15 @@
 import { Document, Types } from 'mongoose';
-import Product from '@/models/Product';
+import Product, { IProduct } from '@/models/Product';
 import { GraphQLError } from 'graphql';
 import { MyContext } from '../route';
 
 // --- TypeScript Interfaces & Types ---
 
-// Define the specific product types for better type safety
 type ProductType = 'product' | 'service';
 
 // Describes the structure of a Mongoose Product document
-interface ProductDocument extends Document {
+interface ProductDocument extends IProduct, Document {
   _id: Types.ObjectId;
-  name: string;
-  sku?: string;
-  description?: string;
-  price: number;
-  type: ProductType;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -25,22 +19,20 @@ interface ProductInput {
   name: string;
   price: number;
   type: ProductType;
-  sku?: string;
+  productId?: string; 
   description?: string;
 }
 
-// For updates, all fields are optional
 type UpdateProductInput = Partial<ProductInput>;
 
 // --- Helper Function ---
 
-// A typed helper function to transform a Mongoose document
 const transformProduct = (product: ProductDocument | null) => {
     if (!product) return null;
     return {
         id: product._id.toString(),
         name: product.name,
-        sku: product.sku,
+        productId: product.productId, 
         description: product.description,
         price: product.price,
         type: product.type,
@@ -57,7 +49,6 @@ const productResolver = {
       if (!context.user) throw new GraphQLError('Not authenticated');
       try {
         const filter = type ? { type } : {};
-        // The result of find() is now typed as an array of ProductDocuments
         const products = await Product.find(filter).sort({ createdAt: -1 }) as ProductDocument[];
         return products.map(transformProduct);
       } catch (error) {

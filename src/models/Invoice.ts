@@ -1,6 +1,6 @@
-import mongoose, { Schema, Document } from 'mongoose';
-import { IClient, IClientInfo } from './Client'; // This import is now correct
-import { IQuotation, ILineItem } from './Quotation';
+import mongoose, { Schema, Document, Model } from 'mongoose';
+import { IClient } from './Client';
+import { IQuotation, ILineItem, IClientInfo } from './Quotation';
 import { IAMC } from './AMC'; 
 
 export interface IInvoice extends Document {
@@ -20,15 +20,16 @@ export interface IInvoice extends Document {
   termsOfService?: string;
 }
 
-const InvoiceSchema: Schema = new Schema({
+const InvoiceSchema: Schema<IInvoice> = new Schema({
   invoiceId: { type: String, required: true, unique: true },
   client: { type: Schema.Types.ObjectId, ref: 'Client', required: true },
+  // --- THIS IS THE FIX: Schema updated to use simple strings for addresses ---
   clientInfo: {
     name: { type: String, required: true },
     phone: { type: String, required: true },
     email: String,
-    billingAddress: { street: String, city: String, pincode: String },
-    installationAddress: { street: String, city: String, pincode: String },
+    billingAddress: String,
+    installationAddress: String,
   },
   quotation: { type: Schema.Types.ObjectId, ref: 'Quotation' },
   amc: { type: Schema.Types.ObjectId, ref: 'AMC' },
@@ -52,4 +53,6 @@ const InvoiceSchema: Schema = new Schema({
   toObject: { virtuals: true }
 });
 
-export default mongoose.models.Invoice || mongoose.model<IInvoice>('Invoice', InvoiceSchema);
+const Invoice: Model<IInvoice> = mongoose.models.Invoice || mongoose.model<IInvoice>('Invoice', InvoiceSchema);
+
+export default Invoice;

@@ -1,60 +1,33 @@
-import mongoose, { Schema, Document } from 'mongoose';
+import mongoose, { Schema, Document, Model } from 'mongoose';
 
-// --- THIS IS THE FIX: IClientInfo is now defined and exported here ---
-export interface IClientInfo {
-  name: string;
-  contactPerson?: string;
-  phone: string;
-  email?: string;
-  billingAddress?: {
-    street?: string;
-    city?: string;
-    pincode?: string;
-  };
-  installationAddress?: {
-    street?: string;
-    city?: string;
-    pincode?: string;
-  };
+// --- THIS IS THE FIX: A new, more flexible address interface ---
+export interface IAddress {
+  tag: string;    // e.g., "Billing", "Shipping", "Site 1"
+  address: string; // The full address as a single string
 }
-// --- END OF FIX ---
 
 export interface IClient extends Document {
   name: string;
   contactPerson?: string;
   phone: string;
   email?: string;
-  billingAddress?: {
-    street?: string;
-    city?: string;
-    pincode?: string;
-  };
-  installationAddress?: {
-    street?: string;
-    city?: string;
-    pincode?: string;
-  };
+  addresses?: IAddress[]; // Replaced separate address fields with an array
   customFields?: {
     key: string;
     value: string;
   }[];
 }
 
-const ClientSchema: Schema = new Schema({
+const ClientSchema: Schema<IClient> = new Schema({
   name: { type: String, required: true },
   contactPerson: { type: String },
   phone: { type: String, required: true, unique: true },
   email: { type: String, unique: true, sparse: true },
-  billingAddress: {
-    street: String,
-    city: String,
-    pincode: String
-  },
-  installationAddress: {
-    street: String,
-    city: String,
-    pincode: String
-  },
+  // --- THIS IS THE FIX: The schema now uses an array of address objects ---
+  addresses: [{
+    tag: { type: String, required: true },
+    address: { type: String, required: true },
+  }],
   customFields: [{
     key: { type: String },
     value: { type: String }
@@ -65,4 +38,6 @@ const ClientSchema: Schema = new Schema({
   toObject: { virtuals: true }
 });
 
-export default mongoose.models.Client || mongoose.model<IClient>('Client', ClientSchema);
+const Client: Model<IClient> = mongoose.models.Client || mongoose.model<IClient>('Client', ClientSchema);
+
+export default Client;

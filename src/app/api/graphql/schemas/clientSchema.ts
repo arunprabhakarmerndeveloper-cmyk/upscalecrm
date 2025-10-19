@@ -1,9 +1,7 @@
-// src/app/api/graphql/schemas/clientSchema.ts
 const clientSchema = `
   type Address {
-    street: String
-    city: String
-    pincode: String
+    tag: String!
+    address: String!
   }
 
   type CustomField {
@@ -11,23 +9,61 @@ const clientSchema = `
     value: String!
   }
 
+  # --- FIX: Added these basic types so the Client type can reference them ---
+  type Quotation {
+      id: ID!
+      quotationId: String!
+      createdAt: String!
+      status: String!
+      totalAmount: Float!
+  }
+
+  type Invoice {
+      id: ID!
+      invoiceId: String!
+      issueDate: String
+      installationDate: String
+      status: String!
+      totalAmount: Float!
+  }
+
+  type AMC {
+      id: ID!
+      amcId: String!
+      startDate: String!
+      endDate: String!
+      status: String!
+      productInstances: [ProductInstance!]
+  }
+
+  type ProductInstance {
+      product: Product
+  }
+
+  type Product {
+      name: String
+  }
+  # --- END OF FIX ---
+
   type Client {
     id: ID!
     name: String!
     contactPerson: String
     phone: String!
     email: String
-    billingAddress: Address
-    installationAddress: Address
+    addresses: [Address!]
     customFields: [CustomField!]
     createdAt: String!
     updatedAt: String!
+    # --- FIX: Added fields to fetch related documents ---
+    quotations: [Quotation!]
+    invoices: [Invoice!]
+    amcs: [AMC!]
   }
 
   input AddressInput {
-    street: String
-    city: String
-    pincode: String
+    tag: String!
+    address: String!
   }
 
   input CustomFieldInput {
@@ -40,8 +76,7 @@ const clientSchema = `
     contactPerson: String
     phone: String!
     email: String
-    billingAddress: AddressInput
-    installationAddress: AddressInput
+    addresses: [AddressInput!]
     customFields: [CustomFieldInput!]
   }
 
@@ -58,3 +93,4 @@ const clientSchema = `
 `;
 
 export default clientSchema;
+

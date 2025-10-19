@@ -8,32 +8,29 @@ import { MyContext } from "../route";
 
 // --- TypeScript Interfaces for Resolver Arguments & Mongoose Docs ---
 
-// Describes the input for the recordPayment mutation
 interface RecordPaymentInput {
   invoiceId: string;
   amount: number;
   paymentDate?: string | Date;
 }
 
-// A basic representation of a Mongoose document for typing the `parent` argument
 interface InvoiceDocument extends Document {
   totalAmount: number;
   amountPaid: number;
   lineItems: Types.DocumentArray<{
-    product: Types.ObjectId | { name: string }; // Can be populated or unpopulated
+    product: Types.ObjectId | { name: string };
     description?: string;
     quantity: number;
     price: number;
   }>;
 }
 
-// A representation of the populated AMC document
 interface PopulatedAMCDocument extends Document {
   client: Types.ObjectId;
-  clientInfo: object; // Assuming clientInfo is a generic object
+  clientInfo: object;
   contractAmount: number;
   productInstances: {
-    product: { name: string }; // This is populated
+    product: { name: string };
   }[];
 }
 
@@ -45,15 +42,38 @@ const invoiceResolver = {
       if (!context.user) throw new GraphQLError("Not authenticated");
       return await Invoice.find({}).sort({ issueDate: -1 }).populate("client");
     },
+
     invoice: async (_: unknown, { id }: { id: string }, context: MyContext) => {
       if (!context.user) throw new GraphQLError("Not authenticated");
-      return await Invoice.findById(id)
+
+      const invoice = await Invoice.findById(id)
         .populate("client")
         .populate("quotation")
         .populate("amc")
         .populate("lineItems.product");
+
+      if (!invoice) throw new GraphQLError("Invoice not found");
+
+      // 🩹 Fix: Safely convert {} → string (avoids “String cannot represent value: {}”)
+      const clientInfo = invoice.clientInfo || {};
+
+      return {
+        ...invoice.toObject(),
+        clientInfo: {
+          ...clientInfo,
+          billingAddress:
+            typeof clientInfo.billingAddress === "object"
+              ? "" // convert empty object to empty string
+              : clientInfo.billingAddress || "",
+          installationAddress:
+            typeof clientInfo.installationAddress === "object"
+              ? ""
+              : clientInfo.installationAddress || "",
+        },
+      };
     },
   },
+
   Mutation: {
     createInvoiceFromQuotation: async (
       _: unknown,
@@ -77,7 +97,9 @@ const invoiceResolver = {
         quotation: quotation._id,
         lineItems: quotation.lineItems,
         totalAmount: quotation.totalAmount,
-        termsOfService: quotation.commercialTerms?.map(t => `${t.title}:\n${t.content}`).join('\n\n'),
+        termsOfService: quotation.commercialTerms
+          ?.map((t) => `${t.title}:\n${t.content}`)
+          .join("\n\n"),
         dueDate,
         installationDate,
       });
@@ -87,37 +109,43 @@ const invoiceResolver = {
     },
 
     createInvoiceFromAMC: async (
-        _: unknown,
-        { amcId, dueDate }: { amcId: string; dueDate?: string },
-        context: MyContext
+      _: unknown,
+      { amcId, dueDate }: { amcId: string; dueDate?: string },
+      context: MyContext
     ) => {
-        if (!context.user) throw new GraphQLError("Not authenticated");
+      if (!context.user) throw new GraphQLError("Not authenticated");
 
-        // We cast the populated result to our specific type
-        const amc = await AMC.findById(amcId).populate('productInstances.product') as PopulatedAMCDocument | null;
-        if (!amc) throw new GraphQLError("AMC not found.");
+      const amc = (await AMC.findById(amcId).populate(
+        "productInstances.product"
+      )) as PopulatedAMCDocument | null;
 
-        const invoiceNumber = await getNextSequenceValue("invoice");
-        const newInvoiceId = `INV-${new Date().getFullYear()}-${invoiceNumber}`;
-        
-        const productNames = amc.productInstances.map(p => p.product.name).join(', ');
+      if (!amc) throw new GraphQLError("AMC not found.");
 
-        const newInvoice = new Invoice({
-            invoiceId: newInvoiceId,
-            client: amc.client,
-            clientInfo: amc.clientInfo,
-            amc: amc._id,
-            lineItems: [{
-                description: `Annual Maintenance Contract for: ${productNames}`,
-                quantity: 1,
-                price: amc.contractAmount,
-            }],
-            totalAmount: amc.contractAmount,
-            dueDate,
-        });
+      const invoiceNumber = await getNextSequenceValue("invoice");
+      const newInvoiceId = `INV-${new Date().getFullYear()}-${invoiceNumber}`;
 
-        await newInvoice.save();
-        return newInvoice;
+      const productNames = amc.productInstances
+        .map((p) => p.product.name)
+        .join(", ");
+
+      const newInvoice = new Invoice({
+        invoiceId: newInvoiceId,
+        client: amc.client,
+        clientInfo: amc.clientInfo,
+        amc: amc._id,
+        lineItems: [
+          {
+            description: `Annual Maintenance Contract for: ${productNames}`,
+            quantity: 1,
+            price: amc.contractAmount,
+          },
+        ],
+        totalAmount: amc.contractAmount,
+        dueDate,
+      });
+
+      await newInvoice.save();
+      return newInvoice;
     },
 
     recordPayment: async (
@@ -140,15 +168,17 @@ const invoiceResolver = {
       return invoice;
     },
   },
+
   Invoice: {
-    // Type the parent argument for chained resolvers
-    balanceDue: (parent: InvoiceDocument) => parent.totalAmount - parent.amountPaid,
+    balanceDue: (parent: InvoiceDocument) =>
+      parent.totalAmount - parent.amountPaid,
+
     lineItems: async (parent: InvoiceDocument) => {
       if (
-        parent.lineItems && 
-        parent.lineItems.length > 0 && 
-        parent.lineItems[0].product && 
-        !(parent.lineItems[0].product as { name: string }).name // Safe cast for the check
+        parent.lineItems &&
+        parent.lineItems.length > 0 &&
+        parent.lineItems[0].product &&
+        !(parent.lineItems[0].product as { name: string }).name
       ) {
         await parent.populate("lineItems.product");
       }

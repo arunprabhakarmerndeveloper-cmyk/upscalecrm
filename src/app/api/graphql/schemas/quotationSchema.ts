@@ -1,18 +1,15 @@
 const quotationSchema = `
-  # Re-using the Address type from the client schema
-  # Note: GraphQL doesn't allow re-defining types, so we assume it exists.
-
   type ClientInfo {
     name: String!
     phone: String!
     email: String
-    billingAddress: Address
-    installationAddress: Address
+    billingAddress: String
+    installationAddress: String
   }
 
   type LineItem {
     product: Product
-    description: String!
+    description: String
     quantity: Int!
     price: Float!
   }
@@ -23,7 +20,7 @@ const quotationSchema = `
     updatedBy: User
     reason: String
     totalAmount: Float!
-    lineItems: [LineItem!]!
+    lineItems: [LineItem!]
   }
 
   type CommercialTerm {
@@ -43,6 +40,9 @@ const quotationSchema = `
     commercialTerms: [CommercialTerm!]
     createdAt: String!
     editHistory: [QuotationVersion!]
+    associatedInvoices: [Invoice!]
+    associatedAMCs: [AMC!]
+    imageUrls: [String!]
   }
 
   input LineItemInput {
@@ -52,25 +52,19 @@ const quotationSchema = `
     price: Float
   }
 
-  input ClientInfoInput {
-    name: String!
-    phone: String!
-    email: String
-    billingAddress: AddressInput
-    installationAddress: AddressInput
-  }
-
   input CommercialTermInput {
     title: String!
     content: String!
   }
 
   input CreateQuotationInput {
-    clientId: ID
-    clientInfo: ClientInfoInput
+    clientId: ID!
+    billingAddress: String!
+    installationAddress: String!
     lineItems: [LineItemInput!]!
     validUntil: String
     commercialTerms: [CommercialTermInput!]
+    imageUrls: [String!]
   }
   
   input UpdateQuotationInput {
@@ -78,6 +72,8 @@ const quotationSchema = `
     validUntil: String
     commercialTerms: [CommercialTermInput!]
     reason: String!
+    totalAmount: Float!
+    imageUrls: [String!]
   }
 
   extend type Query {
@@ -94,3 +90,4 @@ const quotationSchema = `
 `;
 
 export default quotationSchema;
+

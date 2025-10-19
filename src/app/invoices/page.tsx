@@ -69,7 +69,7 @@ export default function InvoicesListPage() {
   }
 
   return (
-    <div style={{ maxWidth: '1280px', margin: 'auto', padding: '2rem 1rem' }}>
+    <div style={{ maxWidth: '1400px', margin: 'auto', padding: '2rem 1rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <h1 style={{ fontSize: '2rem', fontWeight: '700' }}>Invoices</h1>
         {/* <Link href="/invoices/new" style={{ ...buttonStyle }}>+ Add New Invoice</Link> */}
@@ -146,16 +146,6 @@ const StatusBadge = ({ status }: { status: string }) => {
     );
 };
 
-// const buttonStyle: React.CSSProperties = {
-//     backgroundColor: '#2563eb',
-//     color: '#fff',
-//     fontWeight: '600',
-//     padding: '0.6rem 1.2rem',
-//     borderRadius: '0.375rem',
-//     border: 'none',
-//     cursor: 'pointer',
-//     textDecoration: 'none'
-// };
 
 const actionButtonStyle: React.CSSProperties = {
     backgroundColor: '#fff',

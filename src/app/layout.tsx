@@ -23,11 +23,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.className} bg-gray-50`}>
+      <body className={`${inter.className}`}>
         <ApolloWrapper>
           <AuthProvider>
             <Header />
-            <main className="container min-h-screen p-4 mx-auto md:px-6">
+            <main>
               {children}
             </main>
             <Footer />

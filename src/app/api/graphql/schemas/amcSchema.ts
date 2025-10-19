@@ -1,6 +1,17 @@
 const amcSchema = `
+  # This ClientInfoInput is used when creating a client on the fly, not needed for this AMC form
+  input ClientInfoInput {
+    name: String!
+    phone: String!
+    email: String
+    billingAddress: String
+    installationAddress: String
+  }
+
   type ProductInstance {
-    product: Product!
+    # --- ✅ FIX: Product is now nullable ---
+    # This prevents a server crash if a product has been deleted.
+    product: Product
     serialNumber: String
     purchaseDate: String
   }
@@ -35,11 +46,11 @@ const amcSchema = `
     purchaseDate: String
   }
 
-  # --- NEW: Input type for a service visit ---
   input ServiceVisitInput {
-      scheduledDate: String!
+    scheduledDate: String!
   }
 
+  # This input now correctly defines the data sent from the frontend form
   input CreateAMCInput {
     clientId: ID!
     productInstances: [ProductInstanceInput!]!
@@ -48,7 +59,9 @@ const amcSchema = `
     contractAmount: Float!
     frequencyPerYear: Int!
     originatingInvoiceId: ID
-    serviceVisits: [ServiceVisitInput!]! # --- UPDATED ---
+    serviceVisits: [ServiceVisitInput!]!
+    billingAddress: String!
+    installationAddress: String!
   }
 
   input UpdateAMCInput {

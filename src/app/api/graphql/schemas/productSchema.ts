@@ -2,20 +2,20 @@ const productSchema = `
   type Product {
     id: ID!
     name: String!
-    sku: String
+    productId: String
     description: String
     price: Float!
-    type: String! # Will be 'product' or 'service'
+    type: String!
     createdAt: String!
     updatedAt: String!
   }
 
   input ProductInput {
     name: String!
-    sku: String
+    productId: String 
     description: String
     price: Float!
-    type: String! # Must be 'product' or 'service'
+    type: String!
   }
 
   extend type Query {

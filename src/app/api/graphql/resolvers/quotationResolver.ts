@@ -2,46 +2,40 @@ import { Document, Types } from 'mongoose';
 import Quotation from "@/models/Quotation";
 import Product from "@/models/Product";
 import Client from "@/models/Client";
+import Invoice from "@/models/Invoice"; // Import Invoice model
+import AMC from "@/models/AMC";       // Import AMC model
 import { getNextSequenceValue } from "@/models/Counter";
 import { GraphQLError } from "graphql";
 import { MyContext } from "../route";
 
 // --- TypeScript Interfaces ---
-
-interface ClientInfoInput {
-  name: string;
-  phone: string;
-  email?: string;
-}
-
 interface LineItemInput {
   productId: string;
   quantity: number;
   price?: number;
   description?: string;
 }
-
 interface CommercialTermInput {
   title: string;
   content: string;
 }
-
 interface CreateQuotationInput {
-  clientId?: string;
-  clientInfo?: ClientInfoInput;
+  clientId: string;
+  billingAddress: string;
+  installationAddress: string;
   lineItems: LineItemInput[];
   validUntil?: string;
   commercialTerms?: CommercialTermInput[];
+  imageUrls?: string[];
 }
-
 interface UpdateQuotationInput {
   lineItems: LineItemInput[];
   validUntil?: string;
   commercialTerms?: CommercialTermInput[];
   reason: string;
+  totalAmount: number;
+  imageUrls?: string[];
 }
-
-// --- FIX #1: Create a specific and complete interface for the editHistory sub-document ---
 interface IQuotationVersion {
   version: number;
   updatedAt: Date;
@@ -51,7 +45,6 @@ interface IQuotationVersion {
   totalAmount: number;
   commercialTerms: Types.DocumentArray<{ title: string; content: string }>;
 }
-
 interface QuotationDocument extends Document {
   _id: Types.ObjectId;
   client?: Types.ObjectId;
@@ -60,15 +53,16 @@ interface QuotationDocument extends Document {
       contactPerson?: string;
       phone: string;
       email?: string;
-      billingAddress?: object;
-      installationAddress?: object;
+      billingAddress?: string;
+      installationAddress?: string;
   };
   lineItems: Types.DocumentArray<{ product: Types.ObjectId | { name: string } }>;
   totalAmount: number;
-  editHistory: Types.DocumentArray<IQuotationVersion>; // Use the new, specific interface
+  editHistory: Types.DocumentArray<IQuotationVersion>;
   commercialTerms: Types.DocumentArray<{ title: string; content: string }>;
   status: string;
   validUntil?: Date;
+  imageUrls?: string[];
 }
 
 // --- Resolver Map ---
@@ -90,15 +84,18 @@ const quotationResolver = {
     createQuotation: async (_: unknown, { input }: { input: CreateQuotationInput }, context: MyContext) => {
       if (!context.user) throw new GraphQLError("Not authenticated");
       try {
-        const { clientId, clientInfo, lineItems } = input;
-        if (!clientId && !clientInfo) throw new GraphQLError("Either clientId or clientInfo must be provided.");
+        const { clientId, billingAddress, installationAddress, lineItems } = input;
 
-        let finalClientInfo: ClientInfoInput | object | undefined = clientInfo;
-        if (clientId) {
-          const client = await Client.findById(clientId);
-          if (!client) throw new GraphQLError("Existing client not found.");
-          finalClientInfo = client.toObject();
-        }
+        const client = await Client.findById(clientId);
+        if (!client) throw new GraphQLError("Client not found.");
+
+        const finalClientInfo = {
+            name: client.name,
+            phone: client.phone,
+            email: client.email || '',
+            billingAddress: billingAddress,
+            installationAddress: installationAddress,
+        };
 
         let totalAmount = 0;
         const processedLineItems = await Promise.all(
@@ -113,20 +110,18 @@ const quotationResolver = {
         );
 
         const quotationNumber = await getNextSequenceValue("quotation");
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, "0");
-        const day = String(now.getDate()).padStart(2, "0");
-        const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
-        const quotationId = `QUO-${year}${month}${day}-${quotationNumber}-${randomSuffix}`;
+        const quotationId = `QUO-${new Date().getFullYear()}-${quotationNumber}`;
 
+        // --- ✅ FIX: Correctly access imageUrls from the `input` object ---
         const newQuotation = new Quotation({
-          ...input,
-          client: clientId || undefined,
+          quotationId,
+          client: clientId,
           clientInfo: finalClientInfo,
           lineItems: processedLineItems,
           totalAmount,
-          quotationId,
+          validUntil: input.validUntil,
+          commercialTerms: input.commercialTerms,
+          imageUrls: input.imageUrls || [],
         });
 
         await newQuotation.save();
@@ -137,84 +132,86 @@ const quotationResolver = {
       }
     },
     updateQuotationStatus: async (_: unknown, { id, status }: { id: string; status: string }, context: MyContext) => {
-      if (!context.user) throw new GraphQLError("Not authenticated");
-      const updatedQuotation = await Quotation.findByIdAndUpdate(id, { status }, { new: true });
-      if (!updatedQuotation) throw new GraphQLError("Quotation not found.");
-      return updatedQuotation;
+        if (!context.user) throw new GraphQLError("Not authenticated");
+        const updatedQuotation = await Quotation.findByIdAndUpdate(id, { status }, { new: true });
+        if (!updatedQuotation) throw new GraphQLError("Quotation not found.");
+        return updatedQuotation;
     },
     updateQuotation: async (_: unknown, { id, input }: { id: string; input: UpdateQuotationInput }, context: MyContext) => {
-      if (!context.user) throw new GraphQLError("Not authenticated");
-      try {
-        const existingQuotation = await Quotation.findById(id) as QuotationDocument | null;
-        if (!existingQuotation) throw new GraphQLError("Quotation not found.");
+        if (!context.user) throw new GraphQLError("Not authenticated");
+        try {
+            const existingQuotation = await Quotation.findById(id) as QuotationDocument | null;
+            if (!existingQuotation) throw new GraphQLError("Quotation not found.");
 
-        const currentVersion = {
-          version: (existingQuotation.editHistory?.length || 0) + 1,
-          updatedAt: new Date(),
-          updatedBy: context.user._id,
-          reason: input.reason,
-          lineItems: existingQuotation.lineItems,
-          totalAmount: existingQuotation.totalAmount,
-          commercialTerms: existingQuotation.commercialTerms,
-        };
-        // --- FIX #2: Use a targeted 'as any' cast with an ESLint disable comment ---
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        existingQuotation.editHistory.push(currentVersion as any);
+            const currentVersion = {
+                version: (existingQuotation.editHistory?.length || 0) + 1,
+                updatedAt: new Date(),
+                updatedBy: context.user._id,
+                reason: input.reason,
+                lineItems: existingQuotation.lineItems,
+                totalAmount: existingQuotation.totalAmount,
+                commercialTerms: existingQuotation.commercialTerms,
+            };
+            existingQuotation.editHistory.push(currentVersion as any);
 
-        let newTotalAmount = 0;
-        const newProcessedLineItems = await Promise.all(
-          input.lineItems.map(async (item) => {
-            const product = await Product.findById(item.productId);
-            if (!product) throw new GraphQLError(`Product with ID ${item.productId} not found.`);
-            const price = item.price ?? product.price;
-            const description = item.description ?? product.description;
-            newTotalAmount += price * item.quantity;
-            return { product: product._id, description, quantity: item.quantity, price };
-          })
-        );
-        
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        existingQuotation.lineItems = newProcessedLineItems as any;
-        existingQuotation.totalAmount = newTotalAmount;
-        existingQuotation.validUntil = input.validUntil ? new Date(input.validUntil) : undefined;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        existingQuotation.commercialTerms = input.commercialTerms as any;
+            const newProcessedLineItems = await Promise.all(
+                input.lineItems.map(async (item) => {
+                    const product = await Product.findById(item.productId);
+                    if (!product) throw new GraphQLError(`Product with ID ${item.productId} not found.`);
+                    const price = item.price ?? product.price;
+                    const description = item.description ?? product.description;
+                    return { product: product._id, description, quantity: item.quantity, price };
+                })
+            );
+            
+            existingQuotation.lineItems = newProcessedLineItems as any;
+            existingQuotation.totalAmount = input.totalAmount;
+            existingQuotation.validUntil = input.validUntil ? new Date(input.validUntil) : undefined;
+            existingQuotation.commercialTerms = input.commercialTerms as any;
+            existingQuotation.imageUrls = input.imageUrls || []; 
 
-        await existingQuotation.save();
-        return existingQuotation;
-      } catch (error) {
-        if (error instanceof Error) { throw new GraphQLError(error.message); }
-        throw new GraphQLError("An unknown error occurred while updating the quotation.");
-      }
+            await existingQuotation.save();
+            return existingQuotation;
+        } catch (error) {
+            if (error instanceof Error) { throw new GraphQLError(error.message); }
+            throw new GraphQLError("An unknown error occurred while updating the quotation.");
+        }
     },
     approveQuotation: async (_: unknown, { quotationId }: { quotationId: string }, context: MyContext) => {
-      if (!context.user) throw new GraphQLError("Not authenticated");
-      const quotation = await Quotation.findById(quotationId) as QuotationDocument | null;
-      if (!quotation) throw new GraphQLError("Quotation not found.");
+        if (!context.user) throw new GraphQLError("Not authenticated");
+        const quotation = await Quotation.findById(quotationId) as QuotationDocument | null;
+        if (!quotation) throw new GraphQLError("Quotation not found.");
 
-      if (!quotation.client) {
-        const existingClient = await Client.findOne({
-          $or: [{ phone: quotation.clientInfo.phone }, { email: quotation.clientInfo.email }],
-        });
-        if (existingClient) {
-          quotation.client = existingClient._id;
-        } else {
-          const newClient = new Client({
-            name: quotation.clientInfo.name,
-            contactPerson: quotation.clientInfo.contactPerson,
-            phone: quotation.clientInfo.phone,
-            email: quotation.clientInfo.email,
-            billingAddress: quotation.clientInfo.billingAddress,
-            installationAddress: quotation.clientInfo.installationAddress,
-          });
-          await newClient.save();
-          quotation.client = newClient._id;
+        if (!quotation.client) {
+            const existingClient = await Client.findOne({
+                $or: [{ phone: quotation.clientInfo.phone }, { email: quotation.clientInfo.email }],
+            });
+            if (existingClient) {
+                quotation.client = existingClient._id;
+            } else {
+                const addresses = [];
+                if(quotation.clientInfo.billingAddress) {
+                    addresses.push({ tag: 'Billing', address: quotation.clientInfo.billingAddress });
+                }
+                if(quotation.clientInfo.installationAddress && quotation.clientInfo.installationAddress !== quotation.clientInfo.billingAddress) {
+                    addresses.push({ tag: 'Installation', address: quotation.clientInfo.installationAddress });
+                }
+
+                const newClient = new Client({
+                    name: quotation.clientInfo.name,
+                    contactPerson: quotation.clientInfo.contactPerson,
+                    phone: quotation.clientInfo.phone,
+                    email: quotation.clientInfo.email,
+                    addresses: addresses,
+                });
+                await newClient.save();
+                quotation.client = newClient._id as Types.ObjectId;
+            }
         }
-      }
 
-      quotation.status = "Approved";
-      await quotation.save();
-      return quotation.populate("client");
+        quotation.status = "Approved";
+        await quotation.save();
+        return quotation.populate("client");
     },
   },
   Quotation: {
@@ -230,7 +227,21 @@ const quotationResolver = {
         }
         return parent.editHistory;
     },
+    associatedInvoices: async (parent: QuotationDocument) => {
+      return await Invoice.find({ quotation: parent._id });
+    },
+    associatedAMCs: async (parent: QuotationDocument) => {
+      const relatedInvoices = await Invoice.find({ quotation: parent._id }).select('_id');
+      const invoiceIds = relatedInvoices.map(inv => inv._id);
+      
+      if (invoiceIds.length === 0) {
+        return [];
+      }
+      
+      return await AMC.find({ originatingInvoice: { $in: invoiceIds } });
+    },
   },
 };
 
 export default quotationResolver;
+
