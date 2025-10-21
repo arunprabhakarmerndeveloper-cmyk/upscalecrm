@@ -1,17 +1,17 @@
 import { gql } from '@apollo/client';
 
-// Products
-export const GET_PRODUCTS = gql`
-  query GetProducts($type: String) {
-    products(type: $type) {
+
+// AMCs
+export const GET_AMCS = gql`
+  query GetAMCs {
+    amcs {
       id
-      name
-      productId
-      description
-      price
-      type
-      createdAt
-      updatedAt
+      amcId
+      status
+      clientInfo { name phone email }
+      productInstances { product { name } }
+      startDate
+      endDate
     }
   }
 `;
@@ -22,28 +22,8 @@ export const GET_CLIENTS = gql`
     clients {
       id
       name
-      email
       phone
-      createdAt
-    }
-  }
-`;
-
-// AMCs
-export const GET_AMCS = gql`
-  query GetAMCs {
-    amcs {
-      id
-      startDate
-      endDate
-      client {
-        id
-        name
-      }
-      createdBy {
-        id
-        name
-      }
+      email
     }
   }
 `;
@@ -53,13 +33,24 @@ export const GET_INVOICES = gql`
   query GetInvoices {
     invoices {
       id
+      invoiceId
+      status
+      totalAmount
+      dueDate
       issueDate
-      client {
-        id
+      clientInfo {
         name
+        phone
+        email
       }
-      total
     }
+  }
+`;
+
+// Products
+export const GET_PRODUCTS = gql`
+  query GetProducts {
+    products { id name productId description type price }
   }
 `;
 
@@ -68,12 +59,15 @@ export const GET_QUOTATIONS = gql`
   query GetQuotations {
     quotations {
       id
-      createdAt
-      client {
-        id
+      quotationId
+      status
+      totalAmount
+      clientInfo {
         name
+        phone # Added phone
+        email # Added email
       }
-      total
+      createdAt
     }
   }
 `;

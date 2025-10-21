@@ -4,6 +4,7 @@ import { useQuery, useMutation, gql } from '@apollo/client';
 import Link from 'next/link';
 import { useAuth } from '@/lib/AuthContext';
 import { useState, useMemo, ChangeEvent, CSSProperties } from 'react';
+import { GET_PRODUCTS } from "@/graphql/queries";
 
 // --- TypeScript Interfaces ---
 
@@ -21,13 +22,6 @@ interface GetProductsData {
 }
 
 // --- GraphQL Queries & Mutations ---
-
-// --- THIS IS THE FIX: Removed the invalid JavaScript comment ---
-const GET_PRODUCTS = gql`
-  query GetProducts {
-    products { id name productId description type price }
-  }
-`;
 
 const DELETE_PRODUCT = gql`
     mutation DeleteProduct($id: ID!) {

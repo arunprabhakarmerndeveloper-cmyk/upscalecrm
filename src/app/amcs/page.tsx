@@ -1,10 +1,11 @@
 "use client";
 
-import { useQuery, gql } from '@apollo/client';
+import { useQuery } from '@apollo/client';
 import Link from 'next/link';
 import { useAuth } from '@/lib/AuthContext';
 import { useState, useMemo, ChangeEvent } from 'react';
 import React from 'react';
+import { GET_AMCS } from "@/graphql/queries";
 
 // --- TypeScript Interfaces ---
 interface ProductInstance {
@@ -24,21 +25,6 @@ interface AmcListItem {
 interface GetAmcsData {
   amcs: AmcListItem[];
 }
-
-// --- GraphQL Query ---
-const GET_AMCS = gql`
-  query GetAMCs {
-    amcs {
-      id
-      amcId
-      status
-      clientInfo { name phone email }
-      productInstances { product { name } }
-      startDate
-      endDate
-    }
-  }
-`;
 
 export default function AMCsListPage() {
   const { loading: authLoading } = useAuth();

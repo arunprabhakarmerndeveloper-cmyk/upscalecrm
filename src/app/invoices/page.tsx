@@ -4,6 +4,7 @@ import { useQuery, gql } from '@apollo/client';
 import Link from 'next/link';
 import { useAuth } from '@/lib/AuthContext';
 import { useState, useMemo, ChangeEvent } from 'react';
+import { GET_INVOICES } from "@/graphql/queries";
 
 // --- TypeScript Interfaces ---
 interface InvoiceListItem {
@@ -24,25 +25,6 @@ interface InvoiceListItem {
 interface GetInvoicesData {
   invoices: InvoiceListItem[];
 }
-
-// --- GraphQL Query ---
-const GET_INVOICES = gql`
-  query GetInvoices {
-    invoices {
-      id
-      invoiceId
-      status
-      totalAmount
-      dueDate
-      issueDate
-      clientInfo {
-        name
-        phone
-        email
-      }
-    }
-  }
-`;
 
 export default function InvoicesListPage() {
   const { loading: authLoading } = useAuth();

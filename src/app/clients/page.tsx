@@ -1,9 +1,10 @@
 "use client";
 
-import { useQuery, gql } from '@apollo/client';
+import { useQuery } from '@apollo/client';
 import Link from 'next/link';
 import { useAuth } from '@/lib/AuthContext';
 import { useState, useMemo, ChangeEvent, CSSProperties } from 'react';
+import { GET_CLIENTS } from "@/graphql/queries";
 
 // --- TypeScript Interfaces ---
 
@@ -17,19 +18,6 @@ interface ClientListItem {
 interface GetClientsData {
   clients: ClientListItem[];
 }
-
-// --- GraphQL Query ---
-
-const GET_CLIENTS = gql`
-  query GetClients {
-    clients {
-      id
-      name
-      phone
-      email
-    }
-  }
-`;
 
 export default function ClientsListPage() {
   const { loading: authLoading } = useAuth();

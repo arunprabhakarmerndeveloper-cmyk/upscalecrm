@@ -4,6 +4,7 @@ import { useQuery, gql } from '@apollo/client';
 import Link from 'next/link';
 import { useAuth } from '@/lib/AuthContext';
 import { useState, useMemo, ChangeEvent } from 'react';
+import { GET_QUOTATIONS } from "@/graphql/queries";
 
 // --- TypeScript Interfaces ---
 
@@ -24,23 +25,6 @@ interface GetQuotationsData {
   quotations: QuotationListItem[];
 }
 
-// --- GraphQL Query ---
-const GET_QUOTATIONS = gql`
-  query GetQuotations {
-    quotations {
-      id
-      quotationId
-      status
-      totalAmount
-      clientInfo {
-        name
-        phone # Added phone
-        email # Added email
-      }
-      createdAt
-    }
-  }
-`;
 
 export default function QuotationsListPage() {
   const { loading: authLoading } = useAuth();
