@@ -132,7 +132,7 @@ export default function InvoicesListPage() {
       <div style={{ flexGrow: 1, overflow: 'hidden', backgroundColor: '#fff', borderRadius: '0.75rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', border: '1px solid #e5e7eb' }}>
         <div style={{ height: '100%', overflowY: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead style={{ position: 'sticky', top: 0, zIndex: 10, backgroundColor: '#f9fafb' }}>
+            <thead style={{ position: 'sticky', top: 0, zIndex: 10, backgroundColor: '#2563eb' }}>
               <tr>
                 <th style={tableHeaderStyle}>Invoice ID</th>
                 <th style={tableHeaderStyle}>Client</th>
@@ -221,7 +221,7 @@ const actionButtonStyle: React.CSSProperties = {
 const tableHeaderStyle: React.CSSProperties = {
   textAlign: 'left',
   padding: '1rem 1.5rem',
-  color: '#6b7280',
+  color: '#ffffff',
   fontSize: '0.75rem',
   textTransform: 'uppercase',
   letterSpacing: '0.05em',
