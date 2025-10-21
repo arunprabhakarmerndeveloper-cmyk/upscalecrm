@@ -4,6 +4,7 @@ import { useState, FormEvent, ChangeEvent, ReactNode } from "react";
 import { useMutation, gql } from "@apollo/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { GET_CLIENTS } from '@/graphql/queries';
 
 interface Address {
   tag: string;
@@ -50,7 +51,10 @@ export default function NewClientPage() {
         router.push(`/clients/${newClientId}`);
       });
     },
-    refetchQueries: ["GetClients", "GetDashboardData"],
+    refetchQueries: [
+    { query: GET_CLIENTS },           // update clients list
+  ],
+  awaitRefetchQueries: true,
   });
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {

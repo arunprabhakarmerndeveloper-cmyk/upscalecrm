@@ -3,7 +3,7 @@
 import { useQuery, useMutation, gql } from '@apollo/client';
 import Link from 'next/link';
 import { useAuth } from '@/lib/AuthContext';
-import { useState, useMemo, ChangeEvent, CSSProperties, ReactNode } from 'react';
+import { useState, useMemo, ChangeEvent, CSSProperties } from 'react';
 
 // --- TypeScript Interfaces ---
 

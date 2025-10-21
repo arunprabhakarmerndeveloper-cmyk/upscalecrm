@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, useRef, ReactNode } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import Link from 'next/link';
+import Image from 'next/image';
 
 // --- TypeScript Interfaces ---
 
@@ -133,11 +134,233 @@ const sectionTitleStyle: React.CSSProperties = { fontSize: '1.5rem', fontWeight:
 const associatedDocStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 0', borderBottom: '1px solid #f3f4f6'};
 const FormSection = ({ title, children }: { title: string; children: ReactNode }) => ( <div style={{ backgroundColor: '#fff', borderRadius: '0.75rem', padding: '1.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', border: '1px solid #e5e7eb' }}> <h2 style={{ fontSize: '1.25rem', fontWeight: '600', borderBottom: '1px solid #e5e7eb', paddingBottom: '1rem', marginBottom: '1.5rem' }}>{title}</h2> {children} </div> );
 const InputField = ({ label, ...props }: {label?: string} & React.InputHTMLAttributes<HTMLInputElement>) => ( <div> {label && <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', fontSize: '0.875rem' }}>{label}</label>} <input style={{ width: '100%', padding: '0.75rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', boxShadow: '0 1px 2px 0 rgba(0,0,0,0.05)' }} {...props} /> </div> );
-const ModalWrapper = ({title, children, onClose}: {title: string, children: ReactNode, onClose: () => void}) => ( <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}> <div style={{ backgroundColor: 'white', padding: '1.5rem', borderRadius: '0.75rem', width: '90%', maxWidth: '400px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}> <h2 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '1rem' }}>{title}</h2> {children} </div> </div> );
-const SuccessModal = ({ message, onClose }: { message: string, onClose: () => void }) => ( <ModalWrapper title="Success" onClose={onClose}> <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}> <div style={{ margin: '0 auto 1rem auto', width: '50px', height: '50px', borderRadius: '50%', backgroundColor: '#d1fae5', display: 'flex', justifyContent: 'center', alignItems: 'center' }}> <svg style={{ width: '24px', height: '24px', color: '#065f46' }} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> </div> <p style={{ color: '#6b7280', marginBottom: '1.5rem', textAlign: 'center' }}>{message}</p> <button onClick={onClose} style={{...buttonStyle, backgroundColor: '#10b981', color: 'white', width: '100%' }}>OK</button> </div> </ModalWrapper> );
-const ConfirmationModal = ({ title, message, onConfirm, onCancel, loading, confirmText = 'Confirm', showCancel = true }: { title: string, message: string, onConfirm: () => void, onCancel: () => void, loading?: boolean, confirmText?: string, showCancel?: boolean }) => ( <ModalWrapper title={title} onClose={onCancel}> <p style={{ color: '#6b7280', marginBottom: '1.5rem' }}>{message}</p> <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}> {showCancel && <button onClick={onCancel} disabled={loading} style={{...buttonStyle, backgroundColor: '#e5e7eb', color: '#374151'}}>Cancel</button>} <button onClick={onConfirm} disabled={loading} style={{...buttonStyle, backgroundColor: title === 'Error' ? '#2563eb' : '#ef4444', color: 'white', opacity: loading ? 0.6 : 1 }}> {loading ? 'Processing...' : confirmText} </button> </div> </ModalWrapper> );
-const CreateInvoiceModal = ({ onSubmit, onClose, loading }: { onSubmit: (dates: { dueDate: string, installationDate: string }) => void, onClose: () => void, loading: boolean }) => { const [dueDate, setDueDate] = useState(() => { const date = new Date(); date.setDate(date.getDate() + 30); return date.toISOString().split('T')[0]; }); const [installationDate, setInstallationDate] = useState(new Date().toISOString().split('T')[0]); return ( <ModalWrapper title="Create Invoice" onClose={onClose}> <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}> <InputField label="Due Date" type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} /> <InputField label="Installation Date" type="date" value={installationDate} onChange={e => setInstallationDate(e.target.value)} /> </div> <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1.5rem' }}> <button onClick={onClose} disabled={loading} style={{...buttonStyle, backgroundColor: '#e5e7eb', color: '#374151'}}>Cancel</button> <button onClick={() => onSubmit({ dueDate, installationDate })} disabled={loading} style={{...buttonStyle, backgroundColor: '#10b981', color: 'white', opacity: loading ? 0.6 : 1 }}> {loading ? 'Creating...' : 'Confirm & Create'} </button> </div> </ModalWrapper> ); };
-const ModalController = ({ modalState, setModalState }: { modalState: any, setModalState: any }) => { const { type, message, onConfirm } = modalState; if (!type) return null; if (type === 'success') { return <SuccessModal message={message} onClose={() => setModalState({ type: null, message: ''})} />; } if (type === 'success-redirect') { return <SuccessModal message={message} onClose={onConfirm} />; } if (type === 'error') { return <ConfirmationModal title="Error" message={message} onConfirm={() => setModalState({ type: null, message: ''})} onCancel={() => setModalState({ type: null, message: ''})} confirmText="OK" showCancel={false} />; } if (type === 'confirm') { return <ConfirmationModal title="Confirm Action" message={message} onConfirm={() => { onConfirm(); setModalState({ type: null, message: ''}); }} onCancel={() => setModalState({ type: null, message: ''})} />; } return null; };
+// --- ModalWrapper with optional onClose to avoid unused warning ---
+const ModalWrapper = ({
+  title,
+  children,
+  onClose,
+}: {
+  title: string;
+  children: React.ReactNode;
+  onClose?: () => void;
+}) => (
+  <div
+    style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 1000,
+    }}
+    onClick={onClose} // ✅ overlay click closes modal
+  >
+    <div
+      style={{
+        backgroundColor: 'white',
+        padding: '1.5rem',
+        borderRadius: '0.75rem',
+        width: '90%',
+        maxWidth: '400px',
+        boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+      }}
+      onClick={(e) => e.stopPropagation()} // ✅ prevent closing when clicking modal content
+    >
+      <h2 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '1rem' }}>{title}</h2>
+      {children}
+    </div>
+  </div>
+);
+
+
+// --- Success Modal ---
+const SuccessModal = ({ message, onClose }: { message: string; onClose: () => void }) => (
+  <ModalWrapper title="Success" onClose={onClose}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <div
+        style={{
+          margin: '0 auto 1rem auto',
+          width: '50px',
+          height: '50px',
+          borderRadius: '50%',
+          backgroundColor: '#d1fae5',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}
+      >
+        <svg
+          style={{ width: '24px', height: '24px', color: '#065f46' }}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+        </svg>
+      </div>
+      <p style={{ color: '#6b7280', marginBottom: '1.5rem', textAlign: 'center' }}>{message}</p>
+      <button
+        onClick={onClose}
+        style={{ ...buttonStyle, backgroundColor: '#10b981', color: 'white', width: '100%' }}
+      >
+        OK
+      </button>
+    </div>
+  </ModalWrapper>
+);
+
+// --- Confirmation Modal ---
+const ConfirmationModal = ({
+  title,
+  message,
+  onConfirm,
+  onCancel,
+  loading,
+  confirmText = 'Confirm',
+  showCancel = true,
+}: {
+  title: string;
+  message: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  loading?: boolean;
+  confirmText?: string;
+  showCancel?: boolean;
+}) => (
+  <ModalWrapper title={title} onClose={onCancel}>
+    <p style={{ color: '#6b7280', marginBottom: '1.5rem' }}>{message}</p>
+    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+      {showCancel && (
+        <button
+          onClick={onCancel}
+          disabled={loading}
+          style={{ ...buttonStyle, backgroundColor: '#e5e7eb', color: '#374151' }}
+        >
+          Cancel
+        </button>
+      )}
+      <button
+        onClick={onConfirm}
+        disabled={loading}
+        style={{
+          ...buttonStyle,
+          backgroundColor: title === 'Error' ? '#2563eb' : '#ef4444',
+          color: 'white',
+          opacity: loading ? 0.6 : 1,
+        }}
+      >
+        {loading ? 'Processing...' : confirmText}
+      </button>
+    </div>
+  </ModalWrapper>
+);
+
+// --- Create Invoice Modal ---
+const CreateInvoiceModal = ({
+  onSubmit,
+  onClose,
+  loading,
+}: {
+  onSubmit: (dates: { dueDate: string; installationDate: string }) => void;
+  onClose: () => void;
+  loading: boolean;
+}) => {
+  const [dueDate, setDueDate] = useState(() => {
+    const date = new Date();
+    date.setDate(date.getDate() + 30);
+    return date.toISOString().split('T')[0];
+  });
+  const [installationDate, setInstallationDate] = useState(new Date().toISOString().split('T')[0]);
+
+  return (
+    <ModalWrapper title="Create Invoice" onClose={onClose}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <InputField label="Due Date" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+        <InputField
+          label="Installation Date"
+          type="date"
+          value={installationDate}
+          onChange={(e) => setInstallationDate(e.target.value)}
+        />
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1.5rem' }}>
+        <button
+          onClick={onClose}
+          disabled={loading}
+          style={{ ...buttonStyle, backgroundColor: '#e5e7eb', color: '#374151' }}
+        >
+          Cancel
+        </button>
+        <button
+          onClick={() => onSubmit({ dueDate, installationDate })}
+          disabled={loading}
+          style={{ ...buttonStyle, backgroundColor: '#10b981', color: 'white', opacity: loading ? 0.6 : 1 }}
+        >
+          {loading ? 'Creating...' : 'Confirm & Create'}
+        </button>
+      </div>
+    </ModalWrapper>
+  );
+};
+
+// --- Modal types including the "create-invoice" type ---
+type ModalState =
+  | { type: null; message?: string; onConfirm?: () => void }
+  | { type: 'success' | 'success-redirect' | 'error' | 'confirm' | 'create-invoice'; message?: string; onConfirm?: () => void };
+
+const ModalController = ({
+  modalState,
+  setModalState,
+}: {
+  modalState: ModalState;
+  setModalState: React.Dispatch<React.SetStateAction<ModalState>>;
+}) => {
+  const { type, message, onConfirm } = modalState;
+
+  if (!type || type === 'create-invoice') return null; // 'create-invoice' handled separately
+
+  if (type === 'success') {
+    return <SuccessModal message={message || ''} onClose={() => setModalState({ type: null })} />;
+  }
+
+  if (type === 'success-redirect') {
+    return <SuccessModal message={message || ''} onClose={onConfirm ?? (() => setModalState({ type: null }))} />;
+  }
+
+  if (type === 'error') {
+    return (
+      <ConfirmationModal
+        title="Error"
+        message={message || ''}
+        onConfirm={() => setModalState({ type: null })}
+        onCancel={() => setModalState({ type: null })}
+        confirmText="OK"
+        showCancel={false}
+      />
+    );
+  }
+
+  if (type === 'confirm') {
+    return (
+      <ConfirmationModal
+        title="Confirm Action"
+        message={message || ''}
+        onConfirm={() => {
+          onConfirm?.();
+          setModalState({ type: null });
+        }}
+        onCancel={() => setModalState({ type: null })}
+      />
+    );
+  }
+
+  return null;
+};
+
 const ActionsMenu = ({ onStatusChange, isLoading }: { onStatusChange: (newStatus: string) => void; isLoading: boolean; }) => { const [isOpen, setIsOpen] = useState(false); const menuRef = useRef<HTMLDivElement>(null); useEffect(() => { const handleClickOutside = (event: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(event.target as Node)) { setIsOpen(false); } }; document.addEventListener('mousedown', handleClickOutside); return () => document.removeEventListener('mousedown', handleClickOutside); }, []); const handleButtonClick = () => { if (!isLoading) setIsOpen((prev) => !prev); }; return ( <div style={{ position: 'relative', display: 'inline-block' }} ref={menuRef}> <button onClick={handleButtonClick} disabled={isLoading} style={{ ...buttonStyle, backgroundColor: '#f9fafb', color: '#374151', border: '1px solid #d1d5db', opacity: isLoading ? 0.6 : 1 }}> {isLoading ? 'Updating...' : 'Actions ▼'} </button> {isOpen && ( <div style={{ position: 'absolute', right: 0, marginTop: '0.5rem', width: '180px', backgroundColor: 'white', borderRadius: '0.5rem', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', border: '1px solid #e5e7eb', zIndex: 100 }}> <button onClick={() => { onStatusChange('Approved'); setIsOpen(false); }} style={menuItemStyle}>✅ Mark as Approved</button> <button onClick={() => { onStatusChange('Sent'); setIsOpen(false); }} style={menuItemStyle}>✉️ Mark as Sent</button> <button onClick={() => { onStatusChange('Rejected'); setIsOpen(false); }} style={{...menuItemStyle, color: '#ef4444'}}>❌ Mark as Rejected</button> </div> )} </div> ); };
 
 // --- ✅ NEW: Styles for Image Viewer ---
@@ -153,7 +376,7 @@ export default function QuotationDetailPage() {
   const router = useRouter();
   const id = params.quotationId as string;
 
-  const [modalState, setModalState] = useState<{ type: string | null; message: string; onConfirm?: () => void }>({ type: null, message: '' });
+  const [modalState, setModalState] = useState<ModalState>({ type: null });
   const [viewingImage, setViewingImage] = useState<string | null>(null);
   const { loading: authLoading } = useAuth();
   const { loading, error, data, refetch } = useQuery<QuotationDetailsData>(GET_QUOTATION_DETAILS, {
@@ -205,13 +428,14 @@ export default function QuotationDetailPage() {
   return (
     <div style={{ maxWidth: '900px', margin: 'auto', padding: '1rem 1rem 4rem 1rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
         {modalState.type && <ModalController modalState={modalState} setModalState={setModalState} />}
-        {modalState.type === 'create-invoice' && 
-            <CreateInvoiceModal 
-                onSubmit={handleCreateInvoice} 
-                onClose={() => setModalState({ type: null, message: ''})} 
-                loading={invoiceCreationLoading}
-            />
-        }
+        {modalState.type === 'create-invoice' && (
+  <CreateInvoiceModal
+    onSubmit={handleCreateInvoice}
+    onClose={() => setModalState({ type: null })}
+    loading={invoiceCreationLoading}
+  />
+)}
+
         {/* --- ✅ NEW: Full-screen image viewer modal --- */}
         {viewingImage && (
             <div style={fullScreenViewerStyle} onClick={() => setViewingImage(null)}>
@@ -293,7 +517,7 @@ export default function QuotationDetailPage() {
               <div style={imageGridStyle}>
                   {quotation.imageUrls.map((url, index) => (
                       <div key={index} style={imageThumbnailStyle} onClick={() => setViewingImage(url)}>
-                          <img src={url} alt={`Quotation image ${index + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          <Image src={url} alt={`Quotation image ${index + 1}`} style={{ objectFit: 'cover', borderRadius: '0.5rem' }} fill />
                       </div>
                   ))}
               </div>

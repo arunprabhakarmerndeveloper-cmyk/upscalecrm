@@ -38,6 +38,7 @@ const amcSchema = `
     createdBy: User
     createdAt: String!
     originatingInvoice: Invoice
+  commercialTerms: String
   }
 
   input ProductInstanceInput {
@@ -62,6 +63,7 @@ const amcSchema = `
     serviceVisits: [ServiceVisitInput!]!
     billingAddress: String!
     installationAddress: String!
+    commercialTerms: String
   }
 
   input UpdateAMCInput {
@@ -71,6 +73,7 @@ const amcSchema = `
     frequencyPerYear: Int
     status: String
     productInstances: [ProductInstanceInput!]
+    commercialTerms: String
   }
 
   extend type Query {

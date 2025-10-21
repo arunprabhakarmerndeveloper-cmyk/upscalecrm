@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useMemo, useEffect, FormEvent, ChangeEvent, ReactNode } from 'react';
+import { useState, useMemo, FormEvent, ReactNode } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/lib/AuthContext';
-import Link from 'next/link';
 
 // --- TypeScript Interfaces ---
 interface ClientInfoState {
@@ -305,7 +304,6 @@ const FormSection = ({ title, children }: { title: string; children: ReactNode }
 const InputField = ({ label, ...props }: {label?: string} & React.InputHTMLAttributes<HTMLInputElement>) => ( <div>{label && <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', fontSize: '0.875rem' }}>{label}</label>}<input style={{ width: '100%', padding: '0.75rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', boxShadow: '0 1px 2px 0 rgba(0,0,0,0.05)' }} {...props} /></div>);
 const TextAreaField = ({ label, ...props }: {label?: string} & React.TextareaHTMLAttributes<HTMLTextAreaElement>) => ( <div>{label && <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', fontSize: '0.875rem' }}>{label}</label>}<textarea style={{ width: '100%', padding: '0.75rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', minHeight: '80px', boxShadow: '0 1px 2px 0 rgba(0,0,0,0.05)' }} {...props} /></div>);
 const SelectField = ({ label, options, placeholder, ...props }: {label?: string, options?: (ProductOption | SelectOption)[], placeholder?: string} & React.SelectHTMLAttributes<HTMLSelectElement>) => ( <div>{label && <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500', fontSize: '0.875rem' }}>{label}</label>}<select style={{ width: '100%', padding: '0.75rem', border: '1px solid #d1d5db', borderRadius: '0.5rem', backgroundColor: 'white', boxShadow: '0 1px 2px 0 rgba(0,0,0,0.05)' }} {...props}><option value="">{placeholder || 'Please select'}</option>{options?.map((opt) => (<option key={opt.id} value={opt.id}>{opt.name}</option>))}</select></div>);
-const gridStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem' };
 const tableHeaderStyle: React.CSSProperties = { padding: '0.75rem', textAlign: 'left', borderBottom: '1px solid #e5e7eb' };
 const tableCellStyle: React.CSSProperties = { padding: '0.75rem' };
 const buttonStyle: React.CSSProperties = { backgroundColor: '#2563eb', color: '#fff', fontWeight: '600', padding: '0.75rem 1.5rem', borderRadius: '0.5rem', border: 'none', cursor: 'pointer', transition: 'background-color 0.2s' };

@@ -34,7 +34,7 @@ const handler = startServerAndCreateNextHandler(server, {
         const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
         const user = await User.findById(decoded.userId);
         return { user };
-      } catch (_) {
+      } catch {
         return { user: null };
       }
     }

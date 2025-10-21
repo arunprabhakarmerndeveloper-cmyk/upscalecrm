@@ -30,6 +30,7 @@ export interface IAMC extends Document {
   createdBy: IUser['_id'];
   createdAt: Date;
   originatingInvoice?: IInvoice['_id'];
+  commercialTerms?: string;
 }
 
 const AMCSchema: Schema<IAMC> = new Schema({
@@ -60,6 +61,7 @@ const AMCSchema: Schema<IAMC> = new Schema({
   status: { type: String, enum: ['Active', 'Expired', 'Cancelled'], default: 'Active' },
   createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   originatingInvoice: { type: Schema.Types.ObjectId, ref: 'Invoice' },
+  commercialTerms: { type: String },
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
