@@ -152,8 +152,20 @@ const invoiceResolver = {
       );
       const grandTotal = totalAmount + (totalAmount * taxPercentage) / 100;
 
+      // 1. Get the unique sequential number to guarantee uniqueness
       const invoiceNumber = await getNextSequenceValue("invoice");
-      const invoiceId = `INV-${new Date().getFullYear()}-${invoiceNumber}`;
+
+      // 2. Get the date components
+      const now = new Date();
+      const year = now.getFullYear().toString().slice(-2);
+      const month = (now.getMonth() + 1).toString().padStart(2, "0");
+      const day = now.getDate().toString().padStart(2, "0");
+
+      // 3. Generate a 5-digit random prefix to obscure the sequence
+      const randomPrefix = Math.floor(10000 + Math.random() * 90000).toString();
+
+      // 4. Combine all parts into the final ID
+      const invoiceId = `INV-${year}${month}${day}-${randomPrefix}${invoiceNumber}`;
 
       // Ensure context.user._id is treated as ObjectId
       const createdById = context.user._id as Types.ObjectId; // Explicit cast
@@ -195,18 +207,19 @@ const invoiceResolver = {
 
       // FIX: Exclude __typename from nested objects
       if (input.clientInfo) {
-    // FIX: Rename __typename to _typename
-    const { __typename: _typename, ...cleanClientInfo } =
-      input.clientInfo as WithTypename<IClientInfo>;
-    input.clientInfo = cleanClientInfo;
-  }
-  if (input.lineItems) {
-    input.lineItems = input.lineItems.map((item) => {
-      // FIX: Rename __typename to _typename
-      const { __typename: _typename, ...cleanItem } = item as WithTypename<ILineItem>;
-      return cleanItem;
-    });
-  }
+        // FIX: Rename __typename to _typename
+        const { __typename: _typename, ...cleanClientInfo } =
+          input.clientInfo as WithTypename<IClientInfo>;
+        input.clientInfo = cleanClientInfo;
+      }
+      if (input.lineItems) {
+        input.lineItems = input.lineItems.map((item) => {
+          // FIX: Rename __typename to _typename
+          const { __typename: _typename, ...cleanItem } =
+            item as WithTypename<ILineItem>;
+          return cleanItem;
+        });
+      }
       // Update fields provided in the input
       Object.assign(invoice, input);
 
@@ -256,8 +269,20 @@ const invoiceResolver = {
       // Ensure context.user._id is treated as ObjectId
       const createdById = context.user._id as Types.ObjectId; // Explicit cast
 
+      // 1. Get the unique sequential number to guarantee uniqueness
       const invoiceNumber = await getNextSequenceValue("invoice");
-      const newInvoiceId = `INV-${new Date().getFullYear()}-${invoiceNumber}`;
+
+      // 2. Get the date components
+      const now = new Date();
+      const year = now.getFullYear().toString().slice(-2);
+      const month = (now.getMonth() + 1).toString().padStart(2, "0");
+      const day = now.getDate().toString().padStart(2, "0");
+
+      // 3. Generate a 5-digit random prefix to obscure the sequence
+      const randomPrefix = Math.floor(10000 + Math.random() * 90000).toString();
+
+      // 4. Combine all parts into the final ID
+      const newInvoiceId = `INV-${year}${month}${day}-${randomPrefix}${invoiceNumber}`;
 
       const newInvoice = new Invoice({
         invoiceId: newInvoiceId,
@@ -298,8 +323,20 @@ const invoiceResolver = {
       // Ensure context.user._id is treated as ObjectId
       const createdById = context.user._id as Types.ObjectId; // Explicit cast
 
+      // 1. Get the unique sequential number to guarantee uniqueness
       const invoiceNumber = await getNextSequenceValue("invoice");
-      const newInvoiceId = `INV-${new Date().getFullYear()}-${invoiceNumber}`;
+
+      // 2. Get the date components
+      const now = new Date();
+      const year = now.getFullYear().toString().slice(-2);
+      const month = (now.getMonth() + 1).toString().padStart(2, "0");
+      const day = now.getDate().toString().padStart(2, "0");
+
+      // 3. Generate a 5-digit random prefix to obscure the sequence
+      const randomPrefix = Math.floor(10000 + Math.random() * 90000).toString();
+
+      // 4. Combine all parts into the final ID
+      const newInvoiceId = `INV-${year}${month}${day}-${randomPrefix}${invoiceNumber}`;
 
       // Use the specific type for 'p'
       const productNames = amc.productInstances
@@ -397,8 +434,22 @@ const invoiceResolver = {
           throw new GraphQLError("Originating invoice not found.");
         } // Generate a new AMC ID
 
+        // 1. Get the unique sequential number to guarantee uniqueness
         const amcNumber = await getNextSequenceValue("amc");
-        const amcId = `AMC-${new Date().getFullYear()}-${amcNumber}`; // Automatically generate service visits
+
+        // 2. Get the date components
+        const now = new Date();
+        const year = now.getFullYear().toString().slice(-2);
+        const month = (now.getMonth() + 1).toString().padStart(2, "0");
+        const day = now.getDate().toString().padStart(2, "0");
+
+        // 3. Generate a 5-digit random prefix to obscure the sequence
+        const randomPrefix = Math.floor(
+          10000 + Math.random() * 90000
+        ).toString();
+
+        // 4. Combine all parts into the final ID
+        const amcId = `AMC-${year}${month}${day}-${randomPrefix}${amcNumber}`;
 
         const start = new Date(startDate);
         const end = new Date(endDate);

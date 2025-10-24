@@ -49,7 +49,7 @@ interface UpdateQuotationInput {
   commercialTerms?: ICommercialTerm[];
   reason: string;
   totalAmount: number;
-  taxPercentage?: number; 
+  taxPercentage?: number;
   grandTotal?: number;
   imageUrls?: string[];
 }
@@ -59,8 +59,8 @@ interface QuotationDocument extends Document {
   clientInfo: IClientInfo;
   lineItems: Types.DocumentArray<ILineItem>;
   totalAmount: number;
-  taxPercentage?: number; 
-  grandTotal?: number; 
+  taxPercentage?: number;
+  grandTotal?: number;
   editHistory: Types.DocumentArray<IQuotationVersion>;
   commercialTerms: Types.DocumentArray<ICommercialTerm>;
   status: string;
@@ -97,7 +97,14 @@ const quotationResolver = {
     ) => {
       if (!context.user) throw new GraphQLError("Not authenticated");
       try {
-        const { clientId, newClient, billingAddress, installationAddress, lineItems, taxPercentage = 0 } = input;
+        const {
+          clientId,
+          newClient,
+          billingAddress,
+          installationAddress,
+          lineItems,
+          taxPercentage = 0,
+        } = input;
 
         let client: IClient | null = null;
         let finalClientInfo: IClientInfo;
@@ -126,11 +133,29 @@ const quotationResolver = {
           );
         }
 
-        const totalAmount = lineItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
-        const grandTotal = totalAmount + (totalAmount * taxPercentage / 100);
-        const quotationNumber = await getNextSequenceValue("quotation");
-        const quotationId = `QUO-${new Date().getFullYear()}-${quotationNumber}`;
+        const totalAmount = lineItems.reduce(
+          (acc, item) => acc + item.price * item.quantity,
+          0
+        );
+        const grandTotal = totalAmount + (totalAmount * taxPercentage) / 100;
 
+        // 1. Get the unique sequential number to guarantee uniqueness
+        const quotationNumber = await getNextSequenceValue("quotation");
+        // 2. Get the date components
+        const now = new Date();
+        const year = now.getFullYear().toString().slice(-2);
+        const month = (now.getMonth() + 1).toString().padStart(2, "0");
+        const day = now.getDate().toString().padStart(2, "0");
+
+        // 3. Generate a 5-digit random prefix to obscure the sequence
+        const randomPrefix = Math.floor(
+          10000 + Math.random() * 90000
+        ).toString();
+
+        // 4. Combine all parts into the final ID
+        const quotationId = `QUO-${year}${month}${day}-${randomPrefix}${quotationNumber}`;
+
+        
         const newQuotation = new Quotation({
           quotationId,
           client: client ? client._id : null,
@@ -138,7 +163,7 @@ const quotationResolver = {
           lineItems,
           totalAmount,
           taxPercentage,
-          grandTotal, 
+          grandTotal,
           validUntil: input.validUntil,
           commercialTerms: input.commercialTerms,
           imageUrls: input.imageUrls || [],
@@ -169,7 +194,9 @@ const quotationResolver = {
         if (!existingQuotation) throw new GraphQLError("Quotation not found.");
 
         const tax = input.taxPercentage ?? existingQuotation.taxPercentage ?? 0;
-        const grandTotal = input.grandTotal ?? input.totalAmount + (input.totalAmount * tax / 100);
+        const grandTotal =
+          input.grandTotal ??
+          input.totalAmount + (input.totalAmount * tax) / 100;
 
         // FIX 1: Create a strongly-typed version object
         const currentVersion: IQuotationVersion = {
@@ -178,10 +205,13 @@ const quotationResolver = {
           updatedBy: context.user._id,
           reason: input.reason,
           clientInfo: existingQuotation.clientInfo,
-          lineItems: existingQuotation.lineItems.toObject(), 
+          lineItems: existingQuotation.lineItems.toObject(),
           totalAmount: existingQuotation.totalAmount,
-          taxPercentage: existingQuotation.taxPercentage, 
-          grandTotal: existingQuotation.grandTotal ?? existingQuotation.totalAmount + (existingQuotation.taxPercentage ?? 0)/100,
+          taxPercentage: existingQuotation.taxPercentage,
+          grandTotal:
+            existingQuotation.grandTotal ??
+            existingQuotation.totalAmount +
+              (existingQuotation.taxPercentage ?? 0) / 100,
           validUntil: existingQuotation.validUntil as Date,
           commercialTerms: existingQuotation.commercialTerms.toObject(),
           imageUrls: existingQuotation.imageUrls,
@@ -193,7 +223,7 @@ const quotationResolver = {
         existingQuotation.lineItems =
           input.lineItems as Types.DocumentArray<ILineItem>;
         existingQuotation.totalAmount = input.totalAmount;
-        existingQuotation.taxPercentage = tax;  
+        existingQuotation.taxPercentage = tax;
         existingQuotation.grandTotal = grandTotal;
         existingQuotation.validUntil = input.validUntil
           ? new Date(input.validUntil)

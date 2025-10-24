@@ -50,7 +50,7 @@ interface CreateAMCInput {
 }
 
 interface UpdateAMCInput {
-  clientInfo?: ClientInfoInput;          // ADDED
+  clientInfo?: ClientInfoInput; // ADDED
   startDate?: string;
   endDate?: string;
   contractAmount?: number;
@@ -92,7 +92,8 @@ const amcResolver = {
       if (!context.user) throw new GraphQLError("Not authenticated");
 
       try {
-        const { clientId, newClient, billingAddress, installationAddress } = input;
+        const { clientId, newClient, billingAddress, installationAddress } =
+          input;
         let clientObjectId: Types.ObjectId | null = null;
         let amcClientInfo;
 
@@ -105,7 +106,8 @@ const amcResolver = {
             installationAddress,
           };
         } else if (clientId) {
-          const clientDocument: (IClient & Document) | null = await Client.findById(clientId).exec();
+          const clientDocument: (IClient & Document) | null =
+            await Client.findById(clientId).exec();
           if (!clientDocument) {
             throw new GraphQLError("Existing client not found.");
           }
@@ -118,11 +120,27 @@ const amcResolver = {
             installationAddress,
           };
         } else {
-          throw new GraphQLError("Either clientId or newClient data must be provided.");
+          throw new GraphQLError(
+            "Either clientId or newClient data must be provided."
+          );
         }
 
+        // 1. Get the unique sequential number to guarantee uniqueness
         const amcNumber = await getNextSequenceValue("amc");
-        const amcId = `AMC-${new Date().getFullYear()}-${amcNumber}`;
+
+        // 2. Get the date components
+        const now = new Date();
+        const year = now.getFullYear().toString().slice(-2);
+        const month = (now.getMonth() + 1).toString().padStart(2, "0");
+        const day = now.getDate().toString().padStart(2, "0");
+
+        // 3. Generate a 5-digit random prefix to obscure the sequence
+        const randomPrefix = Math.floor(
+          10000 + Math.random() * 90000
+        ).toString();
+
+        // 4. Combine all parts into the final ID
+        const amcId = `AMC-${year}${month}${day}-${randomPrefix}${amcNumber}`;
 
         const productInstances = input.productInstances.map((p) => ({
           productName: p.productName,
@@ -138,7 +156,7 @@ const amcResolver = {
           status: "Scheduled" as const,
           scheduledDate: new Date(visit.scheduledDate),
         }));
-        
+
         const newAmc = new AMC({
           amcId,
           client: clientObjectId,
@@ -152,64 +170,80 @@ const amcResolver = {
           frequencyPerYear: input.frequencyPerYear,
           commercialTerms: input.commercialTerms,
           originatingInvoice: input.originatingInvoiceId,
-          status: 'Active',
+          status: "Active",
           createdBy: context.user._id as Types.ObjectId,
         });
 
         await newAmc.save();
-        return await newAmc.populate(['client', 'createdBy', 'originatingInvoice']);
-
+        return await newAmc.populate([
+          "client",
+          "createdBy",
+          "originatingInvoice",
+        ]);
       } catch (error) {
         if (error instanceof Error) throw new GraphQLError(error.message);
-        throw new GraphQLError("An unknown error occurred during AMC creation.");
+        throw new GraphQLError(
+          "An unknown error occurred during AMC creation."
+        );
       }
     },
     updateAMC: async (
-  _: unknown,
-  { id, input }: { id: string; input: UpdateAMCInput },
-  context: MyContext
-) => {
-  if (!context.user || context.user.role !== "Admin") {
-    throw new GraphQLError("You are not authorized to perform this action.");
-  }
+      _: unknown,
+      { id, input }: { id: string; input: UpdateAMCInput },
+      context: MyContext
+    ) => {
+      if (!context.user || context.user.role !== "Admin") {
+        throw new GraphQLError(
+          "You are not authorized to perform this action."
+        );
+      }
 
-  // Create an update object, but don't spread the whole input yet
-  const updateData: UpdateQuery<IAMC> = { ...input };
+      // Create an update object, but don't spread the whole input yet
+      const updateData: UpdateQuery<IAMC> = { ...input };
 
-  // Safely handle the clientInfo object to remove __typename
-  if (input.clientInfo) {
-    const { __typename: _typename, ...cleanClientInfo } = input.clientInfo as WithTypename<ClientInfoInput>;
-    updateData.clientInfo = cleanClientInfo;
-  }
+      // Safely handle the clientInfo object to remove __typename
+      if (input.clientInfo) {
+        const { __typename: _typename, ...cleanClientInfo } =
+          input.clientInfo as WithTypename<ClientInfoInput>;
+        updateData.clientInfo = cleanClientInfo;
+      }
 
-  // Convert product date strings to Date objects
-  if (input.productInstances) {
-    updateData.productInstances = input.productInstances.map(p => ({
-      productName: p.productName,
-      description: p.description,
-      quantity: p.quantity,
-      price: p.price,
-      serialNumber: p.serialNumber,
-      purchaseDate: p.purchaseDate ? new Date(p.purchaseDate) : undefined
-    }));
-  }
-  
-  // ADDED: Convert service visit date strings to Date objects and reset status
-  if (input.serviceVisits) {
-    updateData.serviceVisits = input.serviceVisits.map(visit => ({
-      scheduledDate: new Date(visit.scheduledDate),
-      status: 'Scheduled', // Always reset visit status when schedule is updated
-    }));
-  }
+      // Convert product date strings to Date objects
+      if (input.productInstances) {
+        updateData.productInstances = input.productInstances.map((p) => ({
+          productName: p.productName,
+          description: p.description,
+          quantity: p.quantity,
+          price: p.price,
+          serialNumber: p.serialNumber,
+          purchaseDate: p.purchaseDate ? new Date(p.purchaseDate) : undefined,
+        }));
+      }
 
-  // Use $set for a safer update operation
-  const updatedAmc = await AMC.findByIdAndUpdate(id, { $set: updateData }, { new: true });
-  if (!updatedAmc) {
-    throw new GraphQLError("AMC not found.");
-  }
-  
-  return await updatedAmc.populate(['client', 'createdBy', 'originatingInvoice']);
-},
+      // ADDED: Convert service visit date strings to Date objects and reset status
+      if (input.serviceVisits) {
+        updateData.serviceVisits = input.serviceVisits.map((visit) => ({
+          scheduledDate: new Date(visit.scheduledDate),
+          status: "Scheduled", // Always reset visit status when schedule is updated
+        }));
+      }
+
+      // Use $set for a safer update operation
+      const updatedAmc = await AMC.findByIdAndUpdate(
+        id,
+        { $set: updateData },
+        { new: true }
+      );
+      if (!updatedAmc) {
+        throw new GraphQLError("AMC not found.");
+      }
+
+      return await updatedAmc.populate([
+        "client",
+        "createdBy",
+        "originatingInvoice",
+      ]);
+    },
 
     deleteAMC: async (
       _: unknown,
@@ -217,7 +251,9 @@ const amcResolver = {
       context: MyContext
     ) => {
       if (!context.user || context.user.role !== "Admin") {
-        throw new GraphQLError("You are not authorized to perform this action.");
+        throw new GraphQLError(
+          "You are not authorized to perform this action."
+        );
       }
       const deletedAmc = await AMC.findByIdAndDelete(id);
       if (!deletedAmc) throw new GraphQLError("AMC not found.");
@@ -226,7 +262,12 @@ const amcResolver = {
 
     updateAmcServiceStatus: async (
       _: unknown,
-      { amcId, visitIndex, status, completedDate }: {
+      {
+        amcId,
+        visitIndex,
+        status,
+        completedDate,
+      }: {
         amcId: string;
         visitIndex: number;
         status: ServiceVisitStatus;
@@ -242,14 +283,16 @@ const amcResolver = {
       if (!visit) throw new GraphQLError("Service visit not found.");
 
       visit.status = status;
-      if (status === 'Completed') {
-        visit.completedDate = completedDate ? new Date(completedDate) : new Date();
+      if (status === "Completed") {
+        visit.completedDate = completedDate
+          ? new Date(completedDate)
+          : new Date();
       } else {
         visit.completedDate = undefined;
       }
-      
+
       await amc.save();
-      return await amc.populate(['client', 'createdBy', 'originatingInvoice']);
+      return await amc.populate(["client", "createdBy", "originatingInvoice"]);
     },
   },
   // REMOVED: The chained AMC resolver is no longer needed
