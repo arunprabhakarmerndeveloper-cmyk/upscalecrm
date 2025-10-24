@@ -4,8 +4,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useLazyQuery, gql } from '@apollo/client';
 
 const SEARCH_PRODUCTS = gql`
-  query SearchProducts($searchTerm: String!) {
-    searchProducts(searchTerm: $searchTerm) {
+  query SearchProducts($term: String!) {
+    searchProducts(term: $term) {
       id
       name
       description
@@ -28,7 +28,7 @@ export interface SearchableProductSelectProps {
 }
 
 export const SearchableProductSelect = ({ value = '', onProductSelect }: SearchableProductSelectProps) => {
-  const [searchTerm, setSearchTerm] = useState(value);
+  const [term, setSearchTerm] = useState(value);
   const [isDropdownOpen, setDropdownOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
@@ -53,7 +53,7 @@ export const SearchableProductSelect = ({ value = '', onProductSelect }: Searcha
     const newSearchTerm = e.target.value;
     setSearchTerm(newSearchTerm);
     if (newSearchTerm.length > 1) {
-      search({ variables: { searchTerm: newSearchTerm } });
+      search({ variables: { term: newSearchTerm } });
       setDropdownOpen(true);
     } else {
       setDropdownOpen(false);
@@ -70,7 +70,7 @@ export const SearchableProductSelect = ({ value = '', onProductSelect }: Searcha
     <div ref={wrapperRef} style={{ position: 'relative' }}>
       <input
         type="text"
-        value={searchTerm}
+        value={term}
         onChange={handleInputChange}
         placeholder="Search for a product..."
         style={{ width: '100%', padding: '0.6rem', border: '1px solid #d1d5db', borderRadius: '0.5rem' }}
