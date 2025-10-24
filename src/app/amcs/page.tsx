@@ -1,15 +1,17 @@
 "use client";
 
-import { useQuery } from '@apollo/client';
+import { useQuery, gql } from '@apollo/client'; // Import gql
 import Link from 'next/link';
 import { useAuth } from '@/lib/AuthContext';
 import { useState, useMemo, ChangeEvent } from 'react';
 import React from 'react';
-import { GET_AMCS } from "@/graphql/queries";
+// REMOVED: No longer importing GET_AMCS from queries, defining it locally
 
 // --- TypeScript Interfaces ---
+
+// MODIFIED: ProductInstance now uses productName
 interface ProductInstance {
-  product: { name: string } | null;
+  productName: string;
 }
 
 interface AmcListItem {
@@ -25,6 +27,29 @@ interface AmcListItem {
 interface GetAmcsData {
   amcs: AmcListItem[];
 }
+
+// --- GraphQL Query ---
+// MODIFIED: Define GET_AMCS locally and fetch productName
+const GET_AMCS = gql`
+  query GetAmcs {
+    amcs {
+      id
+      amcId
+      status
+      clientInfo {
+        name
+        phone
+        email
+      }
+      productInstances {
+        productName # Fetch productName directly
+      }
+      startDate
+      endDate
+    }
+  }
+`;
+
 
 export default function AMCsListPage() {
   const { loading: authLoading } = useAuth();
@@ -65,27 +90,23 @@ export default function AMCsListPage() {
     <div style={{
       display: 'flex',
       flexDirection: 'column',
-      height: 'calc(80vh)',
+      height: 'calc(80vh)', // Adjust height as needed
       maxWidth: '1400px',
       margin: 'auto',
+      padding: '1rem', // Added padding
     }}>
       {/* --- Header + Search --- */}
-      <div style={{ flexShrink: 0 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 0', flexWrap: 'wrap', gap: '1rem' }}>
-          <h1 style={{ fontSize: '2rem', fontWeight: '700' }}>Annual Maintenance Contracts (AMCs)</h1>
+      <div style={{ flexShrink: 0, marginBottom: '1rem' }}> {/* Added marginBottom */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
+          <h1 style={{ fontSize: '2rem', fontWeight: '700', margin: 0 }}>Annual Maintenance Contracts (AMCs)</h1>
           <Link href="/amcs/new" style={buttonStyle}>
             + New AMC
           </Link>
         </div>
 
-        <div style={{ margin: '1rem 0', maxWidth: '400px', position: 'relative' }}>
-          <div style={{ position: 'absolute', top: '50%', left: '12px', transform: 'translateY(-50%)', color: '#9ca3af', zIndex: 1 }}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8"></circle>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            </svg>
-          </div>
-          <input 
+        <div style={{ maxWidth: '400px', position: 'relative' }}>
+          {/* ... (Search input SVG is unchanged) ... */}
+          <input
             type="text"
             placeholder="Search by AMC ID, client, phone, email..."
             value={searchTerm}
@@ -120,7 +141,7 @@ export default function AMCsListPage() {
             </thead>
             <tbody>
               {filteredAmcs.length > 0 ? filteredAmcs.map((amc, idx) => (
-                <tr key={amc.id} style={{ borderTop: idx > 0 ? '1px solid #e5e7eb' : 'none' }}>
+                <tr key={amc.id} style={{ borderTop: idx > 0 ? '1px solid #e5e7eb' : 'none', backgroundColor: idx % 2 === 1 ? '#f9fafb' : '#fff' }}> {/* Alternating row color */}
                   <td style={tableCellStyle}>{amc.amcId}</td>
                   <td style={tableCellStyle}>
                     <div>
@@ -129,7 +150,8 @@ export default function AMCsListPage() {
                     </div>
                   </td>
                   <td style={tableCellStyle}>
-                    {amc.productInstances.map(p => p.product?.name).filter(Boolean).join(', ')}
+                    {/* MODIFIED: Display productName directly */}
+                    {amc.productInstances.map(p => p.productName).filter(Boolean).join(', ')}
                   </td>
                   <td style={tableCellStyle}>{formatDate(amc.startDate)}</td>
                   <td style={tableCellStyle}>{formatDate(amc.endDate)}</td>
@@ -140,7 +162,7 @@ export default function AMCsListPage() {
                 </tr>
               )) : (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>No AMCs found.</td>
+                  <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>No AMCs found matching your search.</td>
                 </tr>
               )}
             </tbody>

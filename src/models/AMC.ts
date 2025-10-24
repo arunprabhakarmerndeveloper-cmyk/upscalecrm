@@ -1,12 +1,14 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 import { IClient } from './Client';
-import { IProduct } from './Product';
 import { IUser } from './User';
 import { IInvoice } from './Invoice';
-import { IClientInfo } from './Quotation'; // Re-use the corrected interface
+import { IClientInfo } from './Quotation';
 
-export interface IProductInstance {
-  product: IProduct['_id'];
+export interface IAMCProduct {
+  productName: string;
+  description?: string; // ADDED
+  quantity?: number;    // ADDED
+  price?: number;       // ADDED
   serialNumber?: string;
   purchaseDate?: Date;
 }
@@ -15,10 +17,11 @@ export interface IAMC extends Document {
   amcId: string;
   client: IClient['_id'];
   clientInfo: IClientInfo;
-  productInstances: IProductInstance[];
+  productInstances: IAMCProduct[];
   startDate: Date;
   endDate: Date;
   contractAmount: number;
+  taxPercentage?: number;
   frequencyPerYear: number;
   serviceVisits: {
     scheduledDate: Date;
@@ -35,22 +38,26 @@ export interface IAMC extends Document {
 
 const AMCSchema: Schema<IAMC> = new Schema({
   amcId: { type: String, required: true, unique: true },
-  client: { type: Schema.Types.ObjectId, ref: 'Client', required: true },
+  client: { type: Schema.Types.ObjectId, ref: 'Client' }, // This remains for linking existing clients
   clientInfo: {
     name: { type: String, required: true },
-    phone: { type: String, required: true },
+    phone: String,
     email: String,
     billingAddress: String,
     installationAddress: String,
   },
   productInstances: [{
-    product: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
-    serialNumber: { type: String },
-    purchaseDate: { type: Date },
+    productName: { type: String, required: true },
+    description: String, 
+    quantity: Number,    
+    price: Number,       
+    serialNumber: String,
+    purchaseDate: Date,
   }],
   startDate: { type: Date, required: true },
   endDate: { type: Date, required: true },
   contractAmount: { type: Number, required: true },
+  taxPercentage: { type: Number, default: 0 },
   frequencyPerYear: { type: Number, min: 1, max: 12, required: true },
   serviceVisits: [{
     scheduledDate: Date,

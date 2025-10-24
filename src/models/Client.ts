@@ -1,17 +1,18 @@
+// models/Client.ts
+
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
-// --- THIS IS THE FIX: A new, more flexible address interface ---
 export interface IAddress {
-  tag: string;    // e.g., "Billing", "Shipping", "Site 1"
-  address: string; // The full address as a single string
+  tag: string;
+  address: string;
 }
 
 export interface IClient extends Document {
   name: string;
   contactPerson?: string;
-  phone: string;
+  phone?: string;
   email?: string;
-  addresses?: IAddress[]; // Replaced separate address fields with an array
+  addresses?: IAddress[];
   customFields?: {
     key: string;
     value: string;
@@ -21,9 +22,8 @@ export interface IClient extends Document {
 const ClientSchema: Schema<IClient> = new Schema({
   name: { type: String, required: true },
   contactPerson: { type: String },
-  phone: { type: String, required: true, unique: true },
-  email: { type: String, unique: true, sparse: true },
-  // --- THIS IS THE FIX: The schema now uses an array of address objects ---
+  phone: { type: String },
+  email: { type: String },
   addresses: [{
     tag: { type: String, required: true },
     address: { type: String, required: true },

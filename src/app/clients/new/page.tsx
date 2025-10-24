@@ -19,10 +19,27 @@ interface ClientFormData {
   addresses: Address[];
 }
 
+interface ClientsQueryData {
+  clients: {
+    id: string;
+    name: string; 
+    phone?: string;
+    email?: string;
+  }[];
+}
+
 const CREATE_CLIENT = gql`
   mutation CreateClient($input: ClientInput!) {
     createClient(input: $input) {
       id
+      name
+      contactPerson
+      phone
+      email
+      addresses {
+        tag
+        address
+      }
     }
   }
 `;
@@ -51,10 +68,22 @@ export default function NewClientPage() {
         router.push(`/clients/${newClientId}`);
       });
     },
-    refetchQueries: [
-    { query: GET_CLIENTS },           // update clients list
-  ],
-  awaitRefetchQueries: true,
+    update: (cache, { data: { createClient: newClient } }) => {
+      try {
+        const existingData = cache.readQuery<ClientsQueryData>({ query: GET_CLIENTS });
+
+        if (existingData) {
+          cache.writeQuery({
+            query: GET_CLIENTS,
+            data: {
+              clients: [...existingData.clients, newClient],
+            },
+          });
+        }
+      } catch (e) {
+        console.error("Error updating cache after client creation:", e);
+      }
+    }
   });
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -143,7 +172,6 @@ export default function NewClientPage() {
               name="phone"
               value={formData.phone}
               onChange={handleChange}
-              required
             />
             <InputField
               label="Email Address"

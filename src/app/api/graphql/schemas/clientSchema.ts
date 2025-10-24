@@ -9,7 +9,6 @@ const clientSchema = `
     value: String!
   }
 
-  # --- FIX: Added these basic types so the Client type can reference them ---
   type Quotation {
       id: ID!
       quotationId: String!
@@ -27,35 +26,35 @@ const clientSchema = `
       totalAmount: Float!
   }
 
+  type AMCProduct {
+    productName: String!
+    serialNumber: String
+    purchaseDate: String
+  }
+
   type AMC {
       id: ID!
       amcId: String!
       startDate: String!
       endDate: String!
       status: String!
-      productInstances: [ProductInstance!]
-  }
-
-  type ProductInstance {
-      product: Product
+      productInstances: [AMCProduct!]
   }
 
   type Product {
       name: String
   }
-  # --- END OF FIX ---
 
   type Client {
     id: ID!
     name: String!
     contactPerson: String
-    phone: String!
+    phone: String
     email: String
-    addresses: [Address!]
-    customFields: [CustomField!]
+    addresses: [Address]
+    customFields: [CustomField]
     createdAt: String!
     updatedAt: String!
-    # --- FIX: Added fields to fetch related documents ---
     quotations: [Quotation!]
     invoices: [Invoice!]
     amcs: [AMC!]
@@ -74,7 +73,7 @@ const clientSchema = `
   input ClientInput {
     name: String!
     contactPerson: String
-    phone: String!
+    phone: String
     email: String
     addresses: [AddressInput!]
     customFields: [CustomFieldInput!]
@@ -83,6 +82,7 @@ const clientSchema = `
   extend type Query {
     clients: [Client!]
     client(id: ID!): Client 
+    searchClients(term: String!): [Client!]
   }
 
   extend type Mutation {

@@ -156,7 +156,7 @@ export default function EditClientPage() {
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
                         <InputField label="Client / Company Name" name="name" value={formData.name} onChange={handleChange} required />
                         <InputField label="Contact Person" name="contactPerson" value={formData.contactPerson} onChange={handleChange} />
-                        <InputField label="Phone Number" name="phone" value={formData.phone} onChange={handleChange} required />
+                        <InputField label="Phone Number" name="phone" value={formData.phone} onChange={handleChange} />
                         <InputField label="Email Address" name="email" type="email" value={formData.email} onChange={handleChange} />
                     </div>
                 </FormSection>
@@ -176,7 +176,6 @@ export default function EditClientPage() {
               >
                                 <InputField label="Address Tag" placeholder="e.g., Billing, Site 1" value={addr.tag} onChange={(e) => handleAddressChange(index, 'tag', e.target.value)} required={!!addr.address} />
                                 <InputField label="Full Address" placeholder="Enter full address" value={addr.address} onChange={(e) => handleAddressChange(index, 'address', e.target.value)} required={!!addr.tag} />
-                                {formData.addresses.length > 1 && (
                                     <button
                   type="button"
                   onClick={() => removeAddress(index)}
@@ -190,7 +189,6 @@ export default function EditClientPage() {
                 >
                   Remove Address
                 </button>
-                                )}
                             </div>
                         ))}
                     </div>

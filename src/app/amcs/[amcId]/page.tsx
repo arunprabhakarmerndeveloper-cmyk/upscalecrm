@@ -9,12 +9,22 @@ import jsPDF, { GState } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { getImageAsBase64 } from "@/lib/imageUtils";
 
+declare module "jspdf" {
+  interface jsPDF {
+    lastAutoTable?: {
+      finalY?: number;
+    };
+  }
+}
+
 // --- TypeScript Interfaces ---
 
+// MODIFIED: This interface now matches the new schema
 interface ProductInstance {
-  product: {
-    name: string;
-  } | null;
+  productName: string;
+  description: string | null;
+  quantity: number;
+  price: number;
   serialNumber: string | null;
   purchaseDate: string | number;
 }
@@ -33,6 +43,7 @@ interface Amc {
   startDate: string | number;
   endDate: string | number;
   contractAmount: number;
+  taxPercentage: number; // ADDED
   createdBy: {
     name: string;
   } | null;
@@ -64,6 +75,7 @@ const GET_AMC_DETAILS = gql`
       startDate
       endDate
       contractAmount
+      taxPercentage
       createdBy {
         name
       }
@@ -76,9 +88,10 @@ const GET_AMC_DETAILS = gql`
         installationAddress
       }
       productInstances {
-        product {
-          name
-        }
+        productName
+        description
+        quantity
+        price
         serialNumber
         purchaseDate
       }
@@ -94,18 +107,8 @@ const GET_AMC_DETAILS = gql`
 `;
 
 const UPDATE_SERVICE_STATUS = gql`
-  mutation UpdateAmcServiceStatus(
-    $amcId: ID!
-    $visitIndex: Int!
-    $status: String!
-    $completedDate: String
-  ) {
-    updateAmcServiceStatus(
-      amcId: $amcId
-      visitIndex: $visitIndex
-      status: $status
-      completedDate: $completedDate
-    ) {
+  mutation UpdateAmcServiceStatus( $amcId: ID!, $visitIndex: Int!, $status: String!, $completedDate: String) {
+    updateAmcServiceStatus( amcId: $amcId, visitIndex: $visitIndex, status: $status, completedDate: $completedDate ) {
       id
       serviceVisits {
         status
@@ -133,66 +136,22 @@ const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("en-AE", { style: "currency", currency: "AED" }).format(
     amount
   );
-
-const buttonStyle: React.CSSProperties = {
-  backgroundColor: "#2563eb",
-  color: "#fff",
-  fontWeight: "600",
-  padding: "0.6rem 1.2rem",
-  borderRadius: "0.375rem",
-  textDecoration: "none",
-  border: "none",
-  cursor: "pointer",
-};
-
-const sectionStyle: React.CSSProperties = {
-  backgroundColor: "#fff",
-  borderRadius: "0.75rem",
-  padding: "1.5rem",
-  boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-  border: "1px solid #e5e7eb",
-};
-
-const sectionHeaderStyle: React.CSSProperties = {
-  fontSize: "1.25rem",
-  fontWeight: "600",
-  borderBottom: "1px solid #e5e7eb",
-  paddingBottom: "1rem",
-  marginBottom: "1rem",
-};
-
+const buttonStyle: React.CSSProperties = { backgroundColor: "#2563eb", color: "#fff", fontWeight: "600", padding: "0.6rem 1.2rem", borderRadius: "0.375rem", textDecoration: "none", border: "none", cursor: "pointer" };
+const sectionStyle: React.CSSProperties = { backgroundColor: "#fff", borderRadius: "0.75rem", padding: "1.5rem", boxShadow: "0 1px 3px rgba(0,0,0,0.1)", border: "1px solid #e5e7eb" };
+const sectionHeaderStyle: React.CSSProperties = { fontSize: "1.25rem", fontWeight: "600", borderBottom: "1px solid #e5e7eb", paddingBottom: "1rem", marginBottom: "1rem" };
+const tableHeaderStyle: React.CSSProperties = { textAlign: "left", padding: "0.75rem 1rem", color: "#6b7280", fontSize: "0.75rem", textTransform: "uppercase", fontWeight: "600" };
+const tableCellStyle: React.CSSProperties = { padding: "1rem 1rem", verticalAlign: "top" };
 // --- Main Component ---
 export default function AmcDetailPage() {
-  const params = useParams();
+const params = useParams();
   const id = params.amcId as string;
   const { loading: authLoading } = useAuth();
 
-  const [modal, setModal] = useState<{
-    type: "confirm" | "error" | null;
-    message: string;
-    onConfirm?: () => void;
-  }>({ type: null, message: "" });
+  const [modal, setModal] = useState<{ type: "confirm" | "error" | null; message: string; onConfirm?: () => void; }>({ type: null, message: "" });
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
-  const { loading, error, data, refetch } = useQuery<AmcDetailsData>(
-    GET_AMC_DETAILS,
-    {
-      variables: { id },
-      skip: !id,
-    }
-  );
-
-  const [updateServiceStatus, { loading: updateLoading }] = useMutation(
-    UPDATE_SERVICE_STATUS,
-    {
-      onCompleted: () => refetch(),
-      onError: (err) =>
-        setModal({
-          type: "error",
-          message: `Error updating service status: ${err.message}`,
-        }),
-    }
-  );
+  const { loading, error, data, refetch } = useQuery<AmcDetailsData>(GET_AMC_DETAILS, { variables: { id }, skip: !id });
+  const [updateServiceStatus, { loading: updateLoading }] = useMutation(UPDATE_SERVICE_STATUS, { onCompleted: () => refetch(), onError: (err) => setModal({ type: "error", message: `Error: ${err.message}` }) });
 
   const handleServiceCheck = (index: number, currentStatus: string) => {
     const newStatus = currentStatus === "Completed" ? "Scheduled" : "Completed";
@@ -228,62 +187,54 @@ export default function AmcDetailPage() {
       ]);
 
       if (!headerLogo || !watermarkLogo) {
-        throw new Error(
-          "Could not load required PDF assets. Please re-save your logos as simple PNGs and try again."
-        );
+        throw new Error("Could not load PDF assets.");
       }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const doc: any = new jsPDF("p", "mm", "a4"); // Use 'any' to simplify typing
+      
+      const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
       const { amc } = data;
       const pageHeight = doc.internal.pageSize.getHeight();
       const pageWidth = doc.internal.pageSize.getWidth();
       const margin = 15;
       let lastY = 0;
+      const footerHeight = 15;
 
-      const colors = {
-        navy: "#0B1E3C", royal: "#125EAB", aqua: "#0FD1E3",
-        gray: "#F4F6FA", text: "#333333", white: "#FFFFFF",
-        footer: "#555555",
+      const colors = { navy: "#0B1E3C", royal: "#125EAB", aqua: "#0FD1E3", gray: "#F4F6FA", text: "#333333", white: "#FFFFFF", footer: "#555555" };
+      const firmAddress = "Upscale Water Solutions, Al Barsha, Hassanicor Building, Level 1, Office Number 105 - Dubai";
+
+      const ensureSpace = (requiredHeight: number) => {
+        if (lastY + requiredHeight > pageHeight - footerHeight) {
+          doc.addPage();
+          lastY = margin;
+        }
       };
 
-      const firmAddress =
-        "Upscale Water Solutions, Al Barsha, Hassanicor Building, Level 1, Office Number 105 - Dubai";
+      // --- Header ---
       const logoWidth = 40;
       const logoHeight = logoWidth / (500 / 200);
-      doc.addImage(
-        headerLogo,
-        "PNG",
-        pageWidth - margin - logoWidth,
-        12,
-        logoWidth,
-        logoHeight
-      );
-
+      doc.addImage(headerLogo, "PNG", pageWidth - margin - logoWidth, 12, logoWidth, logoHeight);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(18);
       doc.setTextColor(colors.navy);
       doc.text("Annual Maintenance Contract (AMC)", margin, 18);
-
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
       doc.setTextColor(colors.text);
       doc.text(firmAddress, margin, 24);
-
       doc.setDrawColor(colors.aqua);
       doc.setLineWidth(0.5);
       doc.line(margin, 30, pageWidth - margin, 30);
       lastY = 35;
 
+      // --- Client Details ---
       const clientDetails = [
         ["Client Name:", amc.clientInfo.name],
-        ["Installation Address:", amc.clientInfo.installationAddress || "N/A"],
-        ["Contact Number:", amc.clientInfo.phone],
+        ["Contact Number:", amc.clientInfo.phone || "N/A"],
         ["Email Address:", amc.clientInfo.email || "N/A"],
-        ["Date of Installation:", formatDate(amc.productInstances[0]?.purchaseDate)],
-        ["Contract Validity:", `${formatDate(amc.startDate)} to ${formatDate(amc.endDate)}`],
-        ["Contract Amount:", formatCurrency(amc.contractAmount) + " (AED)"],
+        ["Billing Address:", amc.clientInfo.billingAddress || "N/A"],
+        ["Installation Address:", amc.clientInfo.installationAddress || "N/A"],
+        ["Contract Start Date:", formatDate(amc.startDate)],
+        ["Contract End Date:", formatDate(amc.endDate)],
       ];
-
       autoTable(doc, {
         startY: lastY,
         body: clientDetails,
@@ -292,66 +243,111 @@ export default function AmcDetailPage() {
         columnStyles: { 0: { fontStyle: "bold", cellWidth: 50 } },
         alternateRowStyles: { fillColor: colors.gray },
       });
-
       lastY = doc.lastAutoTable?.finalY ? doc.lastAutoTable.finalY + 10 : lastY;
 
+      // --- Products & Pricing Table ---
       doc.setFont("helvetica", "bold");
       doc.setFontSize(12);
       doc.setTextColor(colors.royal);
-      doc.text("Products Under Contract", margin, lastY);
+      ensureSpace(6);
+      doc.text("Products & Pricing", margin, lastY);
       lastY += 6;
-
-      const productData = amc.productInstances.map((p) => [
-        p.product?.name || "N/A",
-        p.serialNumber || "N/A",
-        formatDate(p.purchaseDate),
+      
+      const lineItems = (amc.productInstances || []).map(item => [
+        item.productName + (item.serialNumber ? `\n(SN: ${item.serialNumber})` : ''),
+        item.description || "—",
+        item.quantity,
+        formatCurrency(item.price),
+        formatCurrency(item.price * item.quantity),
       ]);
-
       autoTable(doc, {
         startY: lastY,
-        head: [["Product Name", "Serial Number", "Install Date"]],
-        body: productData,
+        head: [["Product", "Description", "Qty", "Price", "Total"]],
+        body: lineItems,
         theme: "grid",
         headStyles: { fontStyle: "bold", fillColor: colors.royal, textColor: colors.white },
         alternateRowStyles: { fillColor: colors.gray },
         styles: { lineColor: colors.aqua, lineWidth: 0.1 },
       });
-
       lastY = doc.lastAutoTable?.finalY ? doc.lastAutoTable.finalY + 10 : lastY;
 
+      // --- Totals Section ---
+      const subtotal = amc.productInstances.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 1), 0);
+      const tax = (subtotal * (amc.taxPercentage || 0)) / 100;
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.setTextColor(colors.navy);
+      ensureSpace(6);
+      doc.text("Summary", margin, lastY);
+      lastY += 6;
+      autoTable(doc, {
+        startY: lastY,
+        body: [
+          ["Subtotal:", formatCurrency(subtotal)],
+          [`VAT (${amc.taxPercentage || 0}%):`, formatCurrency(tax)],
+          ["Grand Total (Contract Amount):", formatCurrency(amc.contractAmount)],
+        ],
+        styles: { fontSize: 10, cellPadding: 3 },
+        columnStyles: { 0: { fontStyle: "bold", cellWidth: 80 } },
+        theme: "plain",
+      });
+      lastY = doc.lastAutoTable?.finalY ? doc.lastAutoTable.finalY + 10 : lastY;
+      
+      // --- Commercial Terms ---
+      if (amc.commercialTerms) {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(12);
+        doc.setTextColor(colors.royal);
+        ensureSpace(6);
+        doc.text("Commercial Terms", margin, lastY);
+        lastY += 6;
+        
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        doc.setTextColor(colors.text);
+        const points = amc.commercialTerms.split(/\r?\n/).filter(line => line.trim() !== "");
+        points.forEach(point => {
+            const bullet = `• ${point.trim()}`;
+            const splitLine = doc.splitTextToSize(bullet, pageWidth - margin * 2);
+            ensureSpace(splitLine.length * 5 + 2);
+            doc.text(splitLine, margin + 5, lastY);
+            lastY += splitLine.length * 5 + 2;
+        });
+        lastY += 3;
+      }
+      
+      // --- Scope of Work & Service Schedule ---
       doc.setFontSize(12);
       doc.setTextColor(colors.royal);
-      doc.text("Scope of Work", margin, lastY);
+      doc.setFont("helvetica", "bold");
+      ensureSpace(6);
+      doc.text("Scope of Work & Service Schedule", margin, lastY);
       lastY += 6;
-
+      
+      const numServices = amc.serviceVisits.length;
+      const scopeText = `Under this AMC, ${numServices} services will be provided for a period of twelve (12) months.`;
       doc.setFont("helvetica", "normal");
       doc.setFontSize(10);
       doc.setTextColor(colors.text);
-      const numServices = amc.serviceVisits.length;
-      const scopeText = `Under this AMC, the following ${numServices} services will be provided for a period of twelve (12) months from the date of installation.`;
       const splitText = doc.splitTextToSize(scopeText, pageWidth - margin * 2);
       doc.text(splitText, margin, lastY);
       lastY += splitText.length * 5 + 5;
-
+      
       const serviceData = amc.serviceVisits.map((v, i) => [
-        `Visit #${i + 1}`,
-        formatDate(v.scheduledDate),
-        v.status,
-        formatDate(v.completedDate),
+          `Visit #${i + 1}`, formatDate(v.scheduledDate), v.status, formatDate(v.completedDate)
       ]);
-
       autoTable(doc, {
-        startY: lastY,
-        head: [["Visit", "Scheduled Date", "Status", "Completed On"]],
-        body: serviceData,
-        theme: "grid",
-        headStyles: { fontStyle: "bold", fillColor: colors.royal, textColor: colors.white },
-        alternateRowStyles: { fillColor: colors.gray },
-        styles: { lineColor: colors.aqua, lineWidth: 0.1 },
+          startY: lastY,
+          head: [["Visit", "Scheduled Date", "Status", "Completed On"]],
+          body: serviceData,
+          theme: "grid",
+          headStyles: { fontStyle: "bold", fillColor: colors.royal, textColor: colors.white },
+          alternateRowStyles: { fillColor: colors.gray },
       });
+      lastY = doc.lastAutoTable?.finalY ? doc.lastAutoTable.finalY + 10 : lastY;
 
-      lastY = doc.lastAutoTable?.finalY || lastY;
-
+      // --- Signatures ---
       if (lastY > pageHeight - 50) {
         doc.addPage();
         lastY = margin;
@@ -360,7 +356,6 @@ export default function AmcDetailPage() {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(12);
       doc.text("Authorized Signatures", margin, lastY + 25);
-
       doc.setDrawColor(colors.navy);
       doc.setLineWidth(0.2);
       doc.line(margin, lastY + 40, margin + 70, lastY + 40);
@@ -368,56 +363,41 @@ export default function AmcDetailPage() {
       doc.setFont("helvetica", "normal");
       doc.setFontSize(10);
       doc.text("Company Representative", margin, lastY + 45);
-
       doc.line(pageWidth - margin - 70, lastY + 40, pageWidth - margin, lastY + 40);
       doc.text("Client", pageWidth - margin - 70, lastY + 45);
-      
-      const pageCount = doc.getNumberOfPages();
+
+      // --- Footer + Watermark on every page ---
+      const pageCount = doc.internal.pages.length;
       for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
 
+        // Watermark
         doc.setGState(new GState({ opacity: 0.08 }));
         const watermarkWidth = 120;
         const watermarkHeight = 120;
         const x = (pageWidth - watermarkWidth) / 2;
         const y = (pageHeight - watermarkHeight) / 2;
-        doc.addImage(
-          watermarkLogo,
-          "PNG",
-          x,
-          y,
-          watermarkWidth,
-          watermarkHeight
-        );
-
+        doc.addImage(watermarkLogo, "PNG", x, y, watermarkWidth, watermarkHeight);
         doc.setGState(new GState({ opacity: 1 }));
 
+        // Footer
         const footerY = pageHeight - 12;
         doc.setFontSize(9);
         doc.setTextColor(colors.footer);
-
-        doc.text(`Page ${i} of ${pageCount}`, pageWidth / 2, footerY + 2, {
-          align: "center",
-        });
-        doc.text(`Email: info@upscalewatersolutions.com`, margin, footerY + 2.5);
-        doc.text(`Phone: +971 58 584 2822`, pageWidth - margin, footerY + 2.5, {
-          align: "right",
-        });
+        doc.text(`Page ${i} of ${pageCount}`, pageWidth / 2, footerY + 2, { align: "center" });
+        doc.text("Email: info@upscalewatersolutions.com", margin, footerY + 2.5);
+        doc.text("Phone: +971 58 584 2822", pageWidth - margin, footerY + 2.5, { align: "right" });
       }
-
+      
       doc.save(`AMC-${amc.amcId}.pdf`);
+
     } catch (err) {
       console.error("PDF Generation Failed:", err);
-      setModal({
-        type: "error",
-        message:
-          "An error occurred while generating the PDF. Please check the console.",
-      });
+      setModal({ type: "error", message: "An error occurred while generating the PDF." });
     } finally {
       setIsGeneratingPdf(false);
     }
   };
-
   if (!id || authLoading || loading)
     return (
       <div style={{ textAlign: "center", marginTop: "5rem" }}>
@@ -438,6 +418,13 @@ export default function AmcDetailPage() {
     );
 
   const { amc } = data;
+
+  // Calculate subtotal from product instances
+  const subtotal = amc.productInstances.reduce(
+    (sum, item) => sum + (item.price || 0) * (item.quantity || 1),
+    0
+  );
+  const taxAmount = (subtotal * (amc.taxPercentage || 0)) / 100;
 
   return (
     <>
@@ -513,7 +500,7 @@ export default function AmcDetailPage() {
               <DetailItem label="Phone" value={amc.clientInfo.phone} />
               <DetailItem label="Email" value={amc.clientInfo.email || "N/A"} />
               <DetailItem
-                label="Contract Amount"
+                label="Contract Amount (Grand Total)"
                 value={formatCurrency(amc.contractAmount)}
               />
               <DetailItem
@@ -549,30 +536,100 @@ export default function AmcDetailPage() {
               />
             </div>
           </div>
-
           <div style={sectionStyle}>
             <h3 style={sectionHeaderStyle}>Products Under Contract</h3>
-            {amc.productInstances.map(
-              (instance: ProductInstance, index: number) => (
-                <div
-                  key={index}
+            {/* MODIFIED: Table to show new product details */}
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead style={{ backgroundColor: "#f9fafb" }}>
+                <tr>
+                  <th style={{ ...tableHeaderStyle, width: "40%" }}>Product</th>
+                  <th style={{ ...tableHeaderStyle, textAlign: "center" }}>
+                    Qty
+                  </th>
+                  <th style={{ ...tableHeaderStyle, textAlign: "right" }}>
+                    Price
+                  </th>
+                  <th style={{ ...tableHeaderStyle, textAlign: "right" }}>
+                    Total
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {amc.productInstances.map((instance, index) => (
+                  <tr key={index} style={{ borderTop: "1px solid #f3f4f6" }}>
+                    <td style={tableCellStyle}>
+                      <p style={{ fontWeight: "600" }}>
+                        {instance.productName}
+                      </p>
+                      <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>
+                        {instance.description}
+                      </p>
+                      <p
+                        style={{
+                          fontSize: "0.8rem",
+                          color: "#9ca3af",
+                          marginTop: "0.5rem",
+                        }}
+                      >
+                        SN: {instance.serialNumber || "N/A"} | Installed:{" "}
+                        {formatDate(instance.purchaseDate)}
+                      </p>
+                    </td>
+                    <td style={{ ...tableCellStyle, textAlign: "center" }}>
+                      {instance.quantity}
+                    </td>
+                    <td style={{ ...tableCellStyle, textAlign: "right" }}>
+                      {formatCurrency(instance.price)}
+                    </td>
+                    <td style={{ ...tableCellStyle, textAlign: "right" }}>
+                      {formatCurrency(instance.price * instance.quantity)}
+                    </td>
+                  </tr>
+                ))}
+                {/* --- Footer rows for totals --- */}
+                <tr
+                  style={{ borderTop: "2px solid #e5e7eb", fontWeight: "600" }}
+                >
+                  <td
+                    colSpan={3}
+                    style={{ ...tableCellStyle, textAlign: "right" }}
+                  >
+                    Subtotal:
+                  </td>
+                  <td style={{ ...tableCellStyle, textAlign: "right" }}>
+                    {formatCurrency(subtotal)}
+                  </td>
+                </tr>
+                <tr style={{ borderTop: "1px solid #f3f4f6" }}>
+                  <td
+                    colSpan={3}
+                    style={{ ...tableCellStyle, textAlign: "right" }}
+                  >
+                    VAT ({amc.taxPercentage || 0}%):
+                  </td>
+                  <td style={{ ...tableCellStyle, textAlign: "right" }}>
+                    {formatCurrency(taxAmount)}
+                  </td>
+                </tr>
+                <tr
                   style={{
-                    borderTop: index > 0 ? "1px solid #f3f4f6" : "none",
-                    padding: "1rem 0",
+                    borderTop: "1px solid #f3f4f6",
+                    fontWeight: "700",
+                    fontSize: "1.1rem",
                   }}
                 >
-                  <p style={{ fontWeight: "600" }}>
-                    {instance.product?.name || "Product Not Found"}
-                  </p>
-                  <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>
-                    Serial Number: {instance.serialNumber || "N/A"}
-                  </p>
-                  <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>
-                    Install Date: {formatDate(instance.purchaseDate)}
-                  </p>
-                </div>
-              )
-            )}
+                  <td
+                    colSpan={3}
+                    style={{ ...tableCellStyle, textAlign: "right" }}
+                  >
+                    Grand Total:
+                  </td>
+                  <td style={{ ...tableCellStyle, textAlign: "right" }}>
+                    {formatCurrency(amc.contractAmount)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
 
           <div style={sectionStyle}>
@@ -691,7 +748,8 @@ const StatusBadge = ({ status }: { status: string }) => {
         fontSize: "0.75rem",
         fontWeight: "600",
         textTransform: "capitalize",
-        display: "inline-block",
+        alignItems: "center",
+        display: "flex",
       }}
     >
       {status}

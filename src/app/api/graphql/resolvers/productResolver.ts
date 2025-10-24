@@ -90,6 +90,13 @@ const productResolver = {
         );
       }
     },
+
+    searchProducts: async (_: unknown, { term }: { term: string }, context: MyContext) => {
+      if (!context.user) throw new GraphQLError("Not authenticated");
+      
+      const searchRegex = new RegExp(term, 'i');
+      return await Product.find({ name: searchRegex }).limit(10);
+    },
   },
   Mutation: {
     createProduct: async (

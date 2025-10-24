@@ -7,7 +7,6 @@ import { useState, useMemo, ChangeEvent } from 'react';
 import { GET_QUOTATIONS } from "@/graphql/queries";
 
 // --- TypeScript Interfaces ---
-
 interface QuotationListItem {
   id: string;
   quotationId: string;
@@ -15,8 +14,8 @@ interface QuotationListItem {
   totalAmount: number;
   clientInfo: {
     name: string;
-    phone: string; // Added phone
-    email: string | null; // Added email
+    phone: string | null; // Correctly typed as nullable
+    email: string | null;
   };
   createdAt: string | number;
 }
@@ -41,8 +40,9 @@ export default function QuotationsListPage() {
       q.quotationId.toLowerCase().includes(lowercasedTerm) ||
       q.clientInfo.name.toLowerCase().includes(lowercasedTerm) ||
       q.status.toLowerCase().includes(lowercasedTerm) ||
-      q.clientInfo.phone.includes(lowercasedTerm) || // Added phone to search
-      (q.clientInfo.email && q.clientInfo.email.toLowerCase().includes(lowercasedTerm)) // Added email to search
+      // 👇 FIX: Check if phone/email exist before searching them
+      (q.clientInfo.phone && q.clientInfo.phone.includes(lowercasedTerm)) ||
+      (q.clientInfo.email && q.clientInfo.email.toLowerCase().includes(lowercasedTerm))
     );
   }, [data, searchTerm]);
 
@@ -131,7 +131,7 @@ export default function QuotationsListPage() {
                             {q.clientInfo.email && <p style={{ fontSize: '0.875rem', color: '#6b7280' }}>{q.clientInfo.email}</p>}
                         </div>
                       </td>
-                      <td style={tableCellStyle}>{q.clientInfo.phone}</td>
+                      <td style={tableCellStyle}>{q.clientInfo.phone || 'N/A'}</td>
                       <td style={tableCellStyle}>{formatDate(q.createdAt)}</td>
                       <td style={tableCellStyle}><StatusBadge status={q.status} /></td>
                       <td style={{...tableCellStyle, textAlign: 'right', fontWeight: '500' }}>
@@ -204,14 +204,12 @@ const tableHeaderStyle: React.CSSProperties = {
     fontSize: '0.75rem',
     textTransform: 'uppercase',
     letterSpacing: '0.05em',
-    borderBottom: '1px solid #e5e7eb'
 };
 
 const tableCellStyle: React.CSSProperties = {
     padding: '1rem 1.5rem',
     color: '#374151',
-    verticalAlign: 'top' // Changed to 'top' to align with the multi-line client info
+    verticalAlign: 'top'
 };
 
 const tableRowStyle: React.CSSProperties = { borderTop: '1px solid #f3f4f6' };
-

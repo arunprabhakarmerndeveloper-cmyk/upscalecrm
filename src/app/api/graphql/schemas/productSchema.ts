@@ -21,6 +21,7 @@ const productSchema = `
   extend type Query {
     products(type: String): [Product!]
     product(id: ID!): Product
+    searchProducts(term: String!): [Product!]
   }
 
   extend type Mutation {

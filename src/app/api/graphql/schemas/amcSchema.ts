@@ -1,19 +1,19 @@
 const amcSchema = `
-  # This ClientInfoInput is used when creating a client on the fly, not needed for this AMC form
+  type AMCProduct {
+    productName: String!
+    description: String
+    quantity: Int
+    price: Float
+    serialNumber: String
+    purchaseDate: String
+  }
+
   input ClientInfoInput {
     name: String!
-    phone: String!
+    phone: String
     email: String
     billingAddress: String
     installationAddress: String
-  }
-
-  type ProductInstance {
-    # --- ✅ FIX: Product is now nullable ---
-    # This prevents a server crash if a product has been deleted.
-    product: Product
-    serialNumber: String
-    purchaseDate: String
   }
 
   type ServiceVisit {
@@ -26,23 +26,27 @@ const amcSchema = `
   type AMC {
     id: ID!
     amcId: String!
-    client: Client!
+    client: Client
     clientInfo: ClientInfo!
-    productInstances: [ProductInstance!]!
+    productInstances: [AMCProduct!]! 
     startDate: String!
     endDate: String!
     contractAmount: Float!
+    taxPercentage: Float
     frequencyPerYear: Int!
     serviceVisits: [ServiceVisit!]!
     status: String!
     createdBy: User
     createdAt: String!
     originatingInvoice: Invoice
-  commercialTerms: String
+    commercialTerms: String
   }
 
-  input ProductInstanceInput {
-    productId: ID!
+  input AMCProductInput {
+    productName: String!
+    description: String
+    quantity: Int
+    price: Float
     serialNumber: String
     purchaseDate: String
   }
@@ -51,29 +55,39 @@ const amcSchema = `
     scheduledDate: String!
   }
 
-  # This input now correctly defines the data sent from the frontend form
+  input NewClientForAMCInput {
+    name: String!
+    phone: String
+    email: String
+  }
+
   input CreateAMCInput {
-    clientId: ID!
-    productInstances: [ProductInstanceInput!]!
+    clientId: ID 
+    newClient: NewClientForAMCInput
+    productInstances: [AMCProductInput!]!
     startDate: String!
     endDate: String!
     contractAmount: Float!
+    taxPercentage: Float
     frequencyPerYear: Int!
-    originatingInvoiceId: ID
     serviceVisits: [ServiceVisitInput!]!
     billingAddress: String!
     installationAddress: String!
     commercialTerms: String
+    originatingInvoiceId: ID
   }
 
   input UpdateAMCInput {
+    clientInfo: ClientInfoInput # ADDED
     startDate: String
     endDate: String
     contractAmount: Float
+    taxPercentage: Float
     frequencyPerYear: Int
     status: String
-    productInstances: [ProductInstanceInput!]
+    productInstances: [AMCProductInput!]
     commercialTerms: String
+    serviceVisits: [ServiceVisitInput!]
   }
 
   extend type Query {
@@ -90,4 +104,3 @@ const amcSchema = `
 `;
 
 export default amcSchema;
-

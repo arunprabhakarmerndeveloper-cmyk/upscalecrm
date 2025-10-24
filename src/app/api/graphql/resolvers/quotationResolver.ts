@@ -1,69 +1,68 @@
 import { Document, Types } from "mongoose";
-import Quotation from "@/models/Quotation";
-import Product from "@/models/Product";
-import Client from "@/models/Client";
-import Invoice from "@/models/Invoice"; // Import Invoice model
-import AMC from "@/models/AMC"; // Import AMC model
+import Quotation, { IQuotationVersion } from "@/models/Quotation"; // Import IQuotationVersion
+import Client, { IClient } from "@/models/Client";
+import Invoice from "@/models/Invoice";
+import AMC from "@/models/AMC";
 import { getNextSequenceValue } from "@/models/Counter";
 import { GraphQLError } from "graphql";
 import { MyContext } from "../route";
 
 // --- TypeScript Interfaces ---
-interface LineItemInput {
-  productId: string;
-  quantity: number;
-  price?: number;
-  description?: string;
+interface IClientInfo {
+  name: string;
+  contactPerson?: string;
+  phone?: string;
+  email?: string;
+  billingAddress?: string;
+  installationAddress?: string;
 }
-interface CommercialTermInput {
+interface ILineItem {
+  productName: string;
+  description: string;
+  quantity: number;
+  price: number;
+}
+interface ICommercialTerm {
   title: string;
   content: string;
 }
+interface NewClientInput {
+  name: string;
+  phone: string;
+  email?: string;
+}
 interface CreateQuotationInput {
-  clientId: string;
+  clientId?: string;
+  newClient?: NewClientInput;
   billingAddress: string;
   installationAddress: string;
-  lineItems: LineItemInput[];
+  lineItems: ILineItem[];
   validUntil?: string;
-  commercialTerms?: CommercialTermInput[];
+  commercialTerms?: ICommercialTerm[];
   imageUrls?: string[];
+  taxPercentage?: number;
 }
 interface UpdateQuotationInput {
-  lineItems: LineItemInput[];
-  validUntil?: string;
-  commercialTerms?: CommercialTermInput[];
+  clientInfo?: IClientInfo;
+  lineItems: ILineItem[];
+  validUntil?: string | null;
+  commercialTerms?: ICommercialTerm[];
   reason: string;
   totalAmount: number;
+  taxPercentage?: number; 
+  grandTotal?: number;
   imageUrls?: string[];
-}
-interface IQuotationVersion {
-  version: number;
-  updatedAt: Date;
-  updatedBy: Types.ObjectId;
-  reason: string;
-  lineItems: Types.DocumentArray<{
-    product: Types.ObjectId | { name: string };
-  }>;
-  totalAmount: number;
-  commercialTerms: Types.DocumentArray<{ title: string; content: string }>;
 }
 interface QuotationDocument extends Document {
   _id: Types.ObjectId;
   client?: Types.ObjectId;
-  clientInfo: {
-    name: string;
-    contactPerson?: string;
-    phone: string;
-    email?: string;
-    billingAddress?: string;
-    installationAddress?: string;
-  };
-  lineItems: Types.DocumentArray<{
-    product: Types.ObjectId | { name: string };
-  }>;
+  clientInfo: IClientInfo;
+  lineItems: Types.DocumentArray<ILineItem>;
   totalAmount: number;
+  taxPercentage?: number; 
+  grandTotal?: number; 
   editHistory: Types.DocumentArray<IQuotationVersion>;
-  commercialTerms: Types.DocumentArray<{ title: string; content: string }>;
+  commercialTerms: Types.DocumentArray<ICommercialTerm>;
   status: string;
   validUntil?: Date;
   imageUrls?: string[];
@@ -86,10 +85,10 @@ const quotationResolver = {
       if (!context.user) throw new GraphQLError("Not authenticated");
       return await Quotation.findById(id)
         .populate("client")
-        .populate("lineItems.product")
         .populate({ path: "editHistory", populate: { path: "updatedBy" } });
     },
   },
+
   Mutation: {
     createQuotation: async (
       _: unknown,
@@ -98,63 +97,119 @@ const quotationResolver = {
     ) => {
       if (!context.user) throw new GraphQLError("Not authenticated");
       try {
-        const { clientId, billingAddress, installationAddress, lineItems } =
-          input;
+        const { clientId, newClient, billingAddress, installationAddress, lineItems, taxPercentage = 0 } = input;
 
-        const client = await Client.findById(clientId);
-        if (!client) throw new GraphQLError("Client not found.");
+        let client: IClient | null = null;
+        let finalClientInfo: IClientInfo;
 
-        const finalClientInfo = {
-          name: client.name,
-          phone: client.phone,
-          email: client.email || "",
-          billingAddress: billingAddress,
-          installationAddress: installationAddress,
-        };
+        if (newClient) {
+          finalClientInfo = {
+            name: newClient.name,
+            phone: newClient.phone,
+            email: newClient.email || "",
+            billingAddress,
+            installationAddress,
+          };
+        } else if (clientId) {
+          client = await Client.findById(clientId);
+          if (!client) throw new GraphQLError("Client not found.");
+          finalClientInfo = {
+            name: client.name,
+            phone: client.phone || undefined,
+            email: client.email || "",
+            billingAddress,
+            installationAddress,
+          };
+        } else {
+          throw new GraphQLError(
+            "Either a clientId or newClient data must be provided."
+          );
+        }
 
-        let totalAmount = 0;
-        const processedLineItems = await Promise.all(
-          lineItems.map(async (item) => {
-            const product = await Product.findById(item.productId);
-            if (!product)
-              throw new GraphQLError(
-                `Product with ID ${item.productId} not found.`
-              );
-            const price = item.price ?? product.price;
-            const description = item.description ?? product.description;
-            totalAmount += price * item.quantity;
-            return {
-              product: product._id,
-              description,
-              quantity: item.quantity,
-              price,
-            };
-          })
-        );
-
+        const totalAmount = lineItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
+        const grandTotal = totalAmount + (totalAmount * taxPercentage / 100);
         const quotationNumber = await getNextSequenceValue("quotation");
         const quotationId = `QUO-${new Date().getFullYear()}-${quotationNumber}`;
 
-        // --- ✅ FIX: Correctly access imageUrls from the `input` object ---
         const newQuotation = new Quotation({
           quotationId,
-          client: clientId,
+          client: client ? client._id : null,
           clientInfo: finalClientInfo,
-          lineItems: processedLineItems,
+          lineItems,
           totalAmount,
+          taxPercentage,
+          grandTotal, 
           validUntil: input.validUntil,
           commercialTerms: input.commercialTerms,
           imageUrls: input.imageUrls || [],
+          status: "Draft",
+          createdBy: context.user._id,
         });
 
         await newQuotation.save();
         return newQuotation;
       } catch (error) {
-        if (error instanceof Error) {
-          throw new GraphQLError(error.message);
-        }
+        if (error instanceof Error) throw new GraphQLError(error.message);
         throw new GraphQLError(
           "An unknown error occurred while creating the quotation."
+        );
+      }
+    },
+
+    updateQuotation: async (
+      _: unknown,
+      { id, input }: { id: string; input: UpdateQuotationInput },
+      context: MyContext
+    ) => {
+      if (!context.user) throw new GraphQLError("Not authenticated");
+      try {
+        const existingQuotation = (await Quotation.findById(
+          id
+        )) as QuotationDocument | null;
+        if (!existingQuotation) throw new GraphQLError("Quotation not found.");
+
+        const tax = input.taxPercentage ?? existingQuotation.taxPercentage ?? 0;
+        const grandTotal = input.grandTotal ?? input.totalAmount + (input.totalAmount * tax / 100);
+
+        // FIX 1: Create a strongly-typed version object
+        const currentVersion: IQuotationVersion = {
+          version: (existingQuotation.editHistory?.length || 0) + 1,
+          updatedAt: new Date(),
+          updatedBy: context.user._id,
+          reason: input.reason,
+          clientInfo: existingQuotation.clientInfo,
+          lineItems: existingQuotation.lineItems.toObject(), 
+          totalAmount: existingQuotation.totalAmount,
+          taxPercentage: existingQuotation.taxPercentage, 
+          grandTotal: existingQuotation.grandTotal ?? existingQuotation.totalAmount + (existingQuotation.taxPercentage ?? 0)/100,
+          validUntil: existingQuotation.validUntil as Date,
+          commercialTerms: existingQuotation.commercialTerms.toObject(),
+          imageUrls: existingQuotation.imageUrls,
+        };
+        existingQuotation.editHistory.push(currentVersion);
+
+        if (input.clientInfo) existingQuotation.clientInfo = input.clientInfo;
+
+        existingQuotation.lineItems =
+          input.lineItems as Types.DocumentArray<ILineItem>;
+        existingQuotation.totalAmount = input.totalAmount;
+        existingQuotation.taxPercentage = tax;  
+        existingQuotation.grandTotal = grandTotal;
+        existingQuotation.validUntil = input.validUntil
+          ? new Date(input.validUntil)
+          : undefined;
+        existingQuotation.commercialTerms =
+          (input.commercialTerms as Types.DocumentArray<ICommercialTerm>) ||
+          new Types.DocumentArray([]);
+        existingQuotation.imageUrls = input.imageUrls || [];
+        existingQuotation.status = "Draft";
+
+        await existingQuotation.save();
+        return existingQuotation;
+      } catch (error) {
+        if (error instanceof Error) throw new GraphQLError(error.message);
+        throw new GraphQLError(
+          "An unknown error occurred while updating the quotation."
         );
       }
     },
@@ -171,72 +226,6 @@ const quotationResolver = {
       );
       if (!updatedQuotation) throw new GraphQLError("Quotation not found.");
       return updatedQuotation;
-    },
-    updateQuotation: async (
-      _: unknown,
-      { id, input }: { id: string; input: UpdateQuotationInput },
-      context: MyContext
-    ) => {
-      if (!context.user) throw new GraphQLError("Not authenticated");
-      try {
-        const existingQuotation = (await Quotation.findById(
-          id
-        )) as QuotationDocument | null;
-        if (!existingQuotation) throw new GraphQLError("Quotation not found.");
-
-        const currentVersion = {
-          version: (existingQuotation.editHistory?.length || 0) + 1,
-          updatedAt: new Date(),
-          updatedBy: context.user._id,
-          reason: input.reason,
-          lineItems: existingQuotation.lineItems,
-          totalAmount: existingQuotation.totalAmount,
-          commercialTerms: existingQuotation.commercialTerms,
-        };
-        existingQuotation.editHistory.push(currentVersion as IQuotationVersion);
-
-        const newProcessedLineItems = await Promise.all(
-          input.lineItems.map(async (item) => {
-            const product = await Product.findById(item.productId);
-            if (!product)
-              throw new GraphQLError(
-                `Product with ID ${item.productId} not found.`
-              );
-            const price = item.price ?? product.price;
-            const description = item.description ?? product.description;
-            return {
-              product: product._id,
-              description,
-              quantity: item.quantity,
-              price,
-            };
-          })
-        );
-
-        existingQuotation.lineItems =
-          newProcessedLineItems as unknown as typeof existingQuotation.lineItems;
-        existingQuotation.totalAmount = input.totalAmount;
-        existingQuotation.validUntil = input.validUntil
-          ? new Date(input.validUntil)
-          : undefined;
-        existingQuotation.commercialTerms = (input.commercialTerms || []).map(
-          (term) => ({
-            title: term.title,
-            content: term.content,
-          })
-        ) as unknown as typeof existingQuotation.commercialTerms;
-        existingQuotation.imageUrls = input.imageUrls || [];
-
-        await existingQuotation.save();
-        return existingQuotation;
-      } catch (error) {
-        if (error instanceof Error) {
-          throw new GraphQLError(error.message);
-        }
-        throw new GraphQLError(
-          "An unknown error occurred while updating the quotation."
-        );
-      }
     },
     approveQuotation: async (
       _: unknown,
@@ -295,38 +284,21 @@ const quotationResolver = {
     },
   },
   Quotation: {
-    lineItems: async (parent: QuotationDocument) => {
-      if (
-        parent.lineItems?.[0]?.product &&
-        typeof parent.lineItems[0].product === "object" &&
-        !("name" in parent.lineItems[0].product)
-      ) {
-        await parent.populate("lineItems.product");
-      }
-      return parent.lineItems;
-    },
     editHistory: async (parent: QuotationDocument) => {
+      // We only need to populate the user who made the update
       if (parent.editHistory && parent.editHistory.length > 0) {
-        await parent.populate({
-          path: "editHistory",
-          populate: [{ path: "updatedBy" }, { path: "lineItems.product" }],
-        });
+        await parent.populate({ path: "editHistory.updatedBy" });
       }
       return parent.editHistory;
     },
-    associatedInvoices: async (parent: QuotationDocument) => {
-      return await Invoice.find({ quotation: parent._id });
-    },
+    associatedInvoices: async (parent: QuotationDocument) =>
+      await Invoice.find({ quotation: parent._id }),
     associatedAMCs: async (parent: QuotationDocument) => {
       const relatedInvoices = await Invoice.find({
         quotation: parent._id,
       }).select("_id");
       const invoiceIds = relatedInvoices.map((inv) => inv._id);
-
-      if (invoiceIds.length === 0) {
-        return [];
-      }
-
+      if (invoiceIds.length === 0) return [];
       return await AMC.find({ originatingInvoice: { $in: invoiceIds } });
     },
   },

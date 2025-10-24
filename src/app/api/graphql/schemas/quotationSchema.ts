@@ -1,31 +1,40 @@
+
 const quotationSchema = `
   type ClientInfo {
     name: String!
-    phone: String!
+    phone: String
     email: String
     billingAddress: String
     installationAddress: String
   }
 
   type LineItem {
-    product: Product
+    productName: String!
     description: String
     quantity: Int!
     price: Float!
   }
-
+  
+  type CommercialTerm {
+    title: String!
+    content: String!
+  }
+  
   type QuotationVersion {
     version: Int!
     updatedAt: String!
     updatedBy: User
     reason: String
+    
+    # Snapshot fields for a complete historical record
+    clientInfo: ClientInfo!
+    lineItems: [LineItem!]!
     totalAmount: Float!
-    lineItems: [LineItem!]
-  }
-
-  type CommercialTerm {
-    title: String!
-    content: String!
+    taxPercentage: Float 
+    grandTotal: Float!  
+    validUntil: String
+    commercialTerms: [CommercialTerm!]
+    imageUrls: [String!]
   }
 
   type Quotation {
@@ -36,43 +45,64 @@ const quotationSchema = `
     status: String!
     lineItems: [LineItem!]!
     totalAmount: Float!
+    taxPercentage: Float
+    grandTotal: Float!
     validUntil: String
     commercialTerms: [CommercialTerm!]
     createdAt: String!
     editHistory: [QuotationVersion!]
-    associatedInvoices: [Invoice!]
-    associatedAMCs: [AMC!]
     imageUrls: [String!]
+    associatedInvoices: [Invoice]
+    associatedAMCs: [AMC]
   }
 
   input LineItemInput {
-    productId: ID!
+    productName: String!
     description: String
     quantity: Int!
-    price: Float
+    price: Float!
   }
 
   input CommercialTermInput {
     title: String!
     content: String!
   }
+  
+  input NewClientForQuotationInput {
+    name: String!
+    phone: String
+    email: String
+  }
+
+  input ClientInfoInput {
+    name: String!
+    phone: String
+    email: String
+    billingAddress: String
+    installationAddress: String
+  }
 
   input CreateQuotationInput {
-    clientId: ID!
+    clientId: ID
+    newClient: NewClientForQuotationInput
     billingAddress: String!
     installationAddress: String!
     lineItems: [LineItemInput!]!
     validUntil: String
     commercialTerms: [CommercialTermInput!]
     imageUrls: [String!]
+    taxPercentage: Float
   }
   
   input UpdateQuotationInput {
+    clientInfo: ClientInfoInput
     lineItems: [LineItemInput!]!
     validUntil: String
     commercialTerms: [CommercialTermInput!]
     reason: String!
     totalAmount: Float!
+    taxPercentage: Float
+    grandTotal: Float!  
     imageUrls: [String!]
   }
 
@@ -90,4 +120,3 @@ const quotationSchema = `
 `;
 
 export default quotationSchema;
-

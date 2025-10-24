@@ -1,11 +1,29 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 import { IClient } from './Client';
-import { IQuotation, ILineItem, IClientInfo } from './Quotation';
-import { IAMC } from './AMC'; 
+import { IQuotation } from './Quotation';
+import { IAMC } from './AMC';
+import { IUser } from './User'; // Import IUser if not already imported
+
+// Re-using these interfaces for consistency with Quotations
+export interface IClientInfo {
+  name: string;
+  contactPerson?: string; // Optional field
+  phone?: string;
+  email?: string;
+  billingAddress?: string;
+  installationAddress?: string;
+}
+
+export interface ILineItem {
+  productName: string;
+  description: string;
+  quantity: number;
+  price: number;
+}
 
 export interface IInvoice extends Document {
   invoiceId: string;
-  client: IClient['_id'];
+  client?: IClient['_id']; // Made optional
   clientInfo: IClientInfo;
   quotation?: IQuotation['_id'];
   amc?: IAMC['_id'];
@@ -14,19 +32,21 @@ export interface IInvoice extends Document {
   dueDate?: Date;
   installationDate?: Date;
   lineItems: ILineItem[];
-  totalAmount: number;
+  totalAmount: number; // Subtotal
+  taxPercentage: number;
+  grandTotal: number; // Final total
   amountPaid: number;
   paymentDate?: Date;
   termsOfService?: string;
+  createdBy?: IUser['_id']; // Changed to IUser, made optional if necessary
 }
 
 const InvoiceSchema: Schema<IInvoice> = new Schema({
   invoiceId: { type: String, required: true, unique: true },
-  client: { type: Schema.Types.ObjectId, ref: 'Client', required: true },
-  // --- THIS IS THE FIX: Schema updated to use simple strings for addresses ---
+  client: { type: Schema.Types.ObjectId, ref: 'Client', required: false }, // Made optional
   clientInfo: {
     name: { type: String, required: true },
-    phone: { type: String, required: true },
+    phone: String,
     email: String,
     billingAddress: String,
     installationAddress: String,
@@ -35,18 +55,21 @@ const InvoiceSchema: Schema<IInvoice> = new Schema({
   amc: { type: Schema.Types.ObjectId, ref: 'AMC' },
   status: { type: String, enum: ['Draft', 'Sent', 'Paid', 'Overdue', 'Cancelled'], default: 'Draft' },
   issueDate: { type: Date, default: Date.now },
-  dueDate: { type: Date },
-  installationDate: { type: Date },
+  dueDate: Date,
+  installationDate: Date,
   lineItems: [{
-    product: { type: Schema.Types.ObjectId, ref: 'Product' },
+    productName: { type: String, required: true },
     description: String,
-    quantity: Number,
-    price: Number,
+    quantity: { type: Number, required: true },
+    price: { type: Number, required: true },
   }],
-  totalAmount: { type: Number },
+  totalAmount: { type: Number, required: true },
+  taxPercentage: { type: Number, default: 0 },
+  grandTotal: { type: Number, required: true },
   amountPaid: { type: Number, default: 0 },
-  paymentDate: { type: Date },
-  termsOfService: { type: String },
+  paymentDate: Date,
+  termsOfService: String,
+  createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
