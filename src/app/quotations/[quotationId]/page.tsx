@@ -1120,8 +1120,7 @@ const QuotationSnapshot = ({
               <div
                 key={idx}
                 style={{
-                  marginBottom:
-                    idx === data.commercialTerms.length - 1 ? 0 : "1rem",
+                  marginBottom: idx === data.commercialTerms!.length - 1 ? 0 : "1rem",
                 }}
               >
                 <strong style={{ color: "#111827" }}>{term.title}:</strong>
