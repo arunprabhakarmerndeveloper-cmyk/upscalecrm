@@ -106,7 +106,7 @@ const clientResolver = {
   Client: {
     quotations: async (parent: IClient) => await Quotation.find({ client: parent._id }).sort({ createdAt: -1 }),
     invoices: async (parent: IClient) => await Invoice.find({ client: parent._id }).sort({ issueDate: -1 }),
-    amcs: async (parent: IClient) => await AMC.find({ client: parent._id }).sort({ startDate: -1 }).populate('productInstances.product'),
+    amcs: async (parent: IClient) => await AMC.find({ client: parent._id }).sort({ startDate: -1 }),
   }
 };
 

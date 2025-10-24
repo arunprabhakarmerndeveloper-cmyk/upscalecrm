@@ -16,7 +16,7 @@ interface Quotation {
     quotationId: string;
     createdAt: string | number;
     status: string;
-    totalAmount: number;
+    totalAmount: number; // Keep this as subtotal/base amount if grandTotal isn't in Quotation model
 }
 
 interface Invoice {
@@ -25,7 +25,11 @@ interface Invoice {
     issueDate: string | number | null;
     installationDate: string | number | null;
     status: string;
-    totalAmount: number;
+    grandTotal: number; // Updated to use grandTotal
+}
+
+interface AMCProductInstance { // Simplified interface for display
+    productName: string;
 }
 
 interface AMC {
@@ -34,11 +38,8 @@ interface AMC {
     startDate: string | number;
     endDate: string | number;
     status: string;
-    productInstances: {
-        product: {
-            name: string;
-        }
-    }[] | null;
+    contractAmount: number; // Added
+    productInstances: AMCProductInstance[] | null; // Updated structure
 }
 
 interface Client {
@@ -58,7 +59,7 @@ interface ClientDetailsData {
   client: Client;
 }
 
-// --- GraphQL Query ---
+// --- GraphQL Query (MODIFIED) ---
 const GET_CLIENT_DETAILS = gql`
   query GetClientDetails($id: ID!) {
     client(id: $id) {
@@ -77,7 +78,7 @@ const GET_CLIENT_DETAILS = gql`
         quotationId
         createdAt
         status
-        totalAmount
+        totalAmount # Assuming this is correct for quotations
       }
       invoices {
         id
@@ -85,7 +86,7 @@ const GET_CLIENT_DETAILS = gql`
         issueDate
         installationDate
         status
-        totalAmount
+        grandTotal # Fetching grandTotal
       }
       amcs {
           id
@@ -93,16 +94,16 @@ const GET_CLIENT_DETAILS = gql`
           startDate
           endDate
           status
+          contractAmount # Added contractAmount
           productInstances {
-              product {
-                  name
-              }
+              productName # Fetching productName directly
           }
       }
     }
   }
 `;
 
+// --- Helper Functions & Components ---
 const formatDate = (dateValue: string | number | null | undefined) => {
     if (!dateValue) return '—';
     const timestamp = typeof dateValue === 'number' ? dateValue : Number(dateValue);
@@ -116,17 +117,55 @@ const formatDate = (dateValue: string | number | null | undefined) => {
         });
 };
 
-const formatCurrency = (amount: number) => new Intl.NumberFormat('en-AE', { style: 'currency', currency: 'AED' }).format(amount);
+const formatCurrency = (amount: number | null | undefined) => {
+    if (amount === null || amount === undefined || isNaN(amount)) return 'N/A';
+    return new Intl.NumberFormat('en-AE', { style: 'currency', currency: 'AED' }).format(amount);
+};
+
+const TableWrapper = ({ children }: { children: ReactNode }) => (
+    <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '800px' }}>
+            {children}
+        </table>
+    </div>
+);
+
+const StatusBadge = ({ status }: { status: string }) => {
+    const statusStyles: Record<string, React.CSSProperties> = {
+        Draft: { background: '#f3f4f6', color: '#4b5563' }, Sent: { background: '#dbeafe', color: '#1d4ed8' },
+        Approved: { background: '#d1fae5', color: '#065f46' }, Rejected: { background: '#fee2e2', color: '#991b1b' },
+        Paid: { background: '#d1fae5', color: '#065f46' }, Overdue: { background: '#fee2e2', color: '#991b1b' },
+        Cancelled: { background: '#e5e7eb', color: '#4b5563'}, // Added Cancelled style
+        Active: { background: '#d1fae5', color: '#065f46' }, Expired: { background: '#fee2e2', color: '#991b1b' } // Corrected Expired color
+    };
+    const style = statusStyles[status] || statusStyles['Draft'];
+    return ( <span style={{ ...style, padding: '0.25rem 0.75rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: '600', textTransform: 'capitalize' }}>{status}</span> );
+};
+
+interface DetailItemProps { label: string; value: string | number | null | undefined; }
+const DetailItem = ({ label, value }: DetailItemProps) => value ? ( <div style={{marginBottom: '1rem'}}> <p style={{fontSize: '0.875rem', color: '#6b7280', fontWeight: '600', textTransform: 'uppercase'}}>{label}</p> <p style={{fontWeight: '500', whiteSpace: 'pre-wrap'}}>{value}</p> </div> ) : null;
+
+const FormSection = ({ title, children }: { title?: string, children: ReactNode }) => ( <div style={{ backgroundColor: '#fff', borderRadius: '0.75rem', padding: '1.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', border: '1px solid #e5e7eb' }}> {title && <h2 style={{ fontSize: '1.25rem', fontWeight: '600', borderBottom: '1px solid #e5e7eb', paddingBottom: '1rem', marginBottom: '1.5rem' }}>{title}</h2>} {children} </div> );
+
+// --- Styles ---
+const buttonStyle: React.CSSProperties = { backgroundColor: '#2563eb', color: '#fff', fontWeight: '600', padding: '0.6rem 1.2rem', borderRadius: '0.375rem', textDecoration: 'none', border: 'none', height: 'fit-content' };
+const actionButtonStyle: React.CSSProperties = { backgroundColor: '#fff', color: '#374151', fontWeight: '500', padding: '0.4rem 0.8rem', borderRadius: '0.375rem', border: '1px solid #d1d5db', cursor: 'pointer', textDecoration: 'none', fontSize: '0.875rem' };
+const tabButtonStyle: React.CSSProperties = { padding: '0.75rem 1rem', fontWeight: '600', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', marginBottom: '-2px' };
+const emptyStateStyle: React.CSSProperties = { textAlign: 'center', padding: '2rem', color: '#6b7280' };
+const tableHeaderStyle: React.CSSProperties = { textAlign: 'left', padding: '0.75rem 1.5rem', color: '#6b7280', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap' };
+const tableCellStyle: React.CSSProperties = { padding: '1rem 1.5rem', color: '#374151', verticalAlign: 'middle', whiteSpace: 'nowrap' };
+const tableRowStyle: React.CSSProperties = { borderTop: '1px solid #f3f4f6' };
 
 // --- Main Page Component ---
 export default function ClientDetailPage() {
     const params = useParams();
     const id = params.clientId as string;
     const [activeTab, setActiveTab] = useState('Quotations');
-    
-    const { loading, error, data } = useQuery<ClientDetailsData>(GET_CLIENT_DETAILS, { 
-        variables: { id }, 
-        skip: !id 
+
+    const { loading, error, data } = useQuery<ClientDetailsData>(GET_CLIENT_DETAILS, {
+        variables: { id },
+        skip: !id,
+        fetchPolicy: "cache-and-network" // Ensure fresh data
     });
 
     if (loading) return <div style={{textAlign: 'center', marginTop: '5rem'}}>Loading client details...</div>;
@@ -139,16 +178,16 @@ export default function ClientDetailPage() {
 
     return (
         <div style={{ maxWidth: '1200px', margin: 'auto', padding: '2rem 1rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1rem' }}>
                 <div>
-                    <h1 style={{ fontSize: '2rem', fontWeight: '700' }}>{client.name}</h1>
-                    <p style={{ color: '#6b7280' }}>
-                        Client since {new Date(Number(client.createdAt)).toLocaleDateString('en-GB')}
+                    <h1 style={{ fontSize: '2rem', fontWeight: '700', margin: 0 }}>{client.name}</h1>
+                    <p style={{ color: '#6b7280', marginTop: '0.25rem' }}>
+                        Client since {formatDate(client.createdAt)}
                     </p>
                 </div>
                 <Link href={`/clients/edit/${client.id}`} style={buttonStyle}>Edit Client</Link>
             </div>
-            
+
             <FormSection title="Contact Information">
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
                     <DetailItem label="Contact Person" value={client.contactPerson} />
@@ -161,8 +200,8 @@ export default function ClientDetailPage() {
             <FormSection>
                 <div style={{ display: 'flex', borderBottom: '2px solid #e5e7eb', marginBottom: '1.5rem' }}>
                     {tabs.map(tab => (
-                        <button 
-                            key={tab} 
+                        <button
+                            key={tab}
                             onClick={() => setActiveTab(tab)}
                             style={{
                                 ...tabButtonStyle,
@@ -189,6 +228,8 @@ export default function ClientDetailPage() {
 
 const QuotationsTab = ({ quotations }: { quotations: Quotation[] | null }) => {
     if (!quotations || quotations.length === 0) return <p style={emptyStateStyle}>No quotations found for this client.</p>;
+    // Sort quotations by creation date, newest first
+    const sortedQuotations = [...quotations].sort((a, b) => Number(b.createdAt) - Number(a.createdAt));
     return (
         <TableWrapper>
             <thead>
@@ -201,7 +242,7 @@ const QuotationsTab = ({ quotations }: { quotations: Quotation[] | null }) => {
                 </tr>
             </thead>
             <tbody>
-                {quotations.map(q => (
+                {sortedQuotations.map(q => (
                     <tr key={q.id} style={tableRowStyle}>
                         <td style={tableCellStyle}>{q.quotationId}</td>
                         <td style={tableCellStyle}>{formatDate(q.createdAt)}</td>
@@ -217,26 +258,28 @@ const QuotationsTab = ({ quotations }: { quotations: Quotation[] | null }) => {
 
 const InvoicesTab = ({ invoices }: { invoices: Invoice[] | null }) => {
     if (!invoices || invoices.length === 0) return <p style={emptyStateStyle}>No invoices found for this client.</p>;
+     // Sort invoices by issue date, newest first
+    const sortedInvoices = [...invoices].sort((a, b) => Number(b.issueDate) - Number(a.issueDate));
     return (
         <TableWrapper>
             <thead>
                 <tr>
                     <th style={tableHeaderStyle}>Invoice ID</th>
                     <th style={tableHeaderStyle}>Issue Date</th>
-                    <th style={tableHeaderStyle}>Installation Date</th>
+                    <th style={tableHeaderStyle}>Install Date</th>
                     <th style={tableHeaderStyle}>Status</th>
-                    <th style={{...tableHeaderStyle, textAlign: 'right'}}>Amount</th>
+                    <th style={{...tableHeaderStyle, textAlign: 'right'}}>Grand Total</th> {/* Updated Header */}
                     <th style={{...tableHeaderStyle, textAlign: 'center'}}>Actions</th>
                 </tr>
             </thead>
             <tbody>
-                {invoices.map(inv => (
+                {sortedInvoices.map(inv => (
                     <tr key={inv.id} style={tableRowStyle}>
                         <td style={tableCellStyle}>{inv.invoiceId}</td>
                         <td style={tableCellStyle}>{formatDate(inv.issueDate)}</td>
                         <td style={tableCellStyle}>{formatDate(inv.installationDate)}</td>
                         <td style={tableCellStyle}><StatusBadge status={inv.status} /></td>
-                        <td style={{...tableCellStyle, textAlign: 'right'}}>{formatCurrency(inv.totalAmount)}</td>
+                        <td style={{...tableCellStyle, textAlign: 'right'}}>{formatCurrency(inv.grandTotal)}</td> {/* Updated Data */}
                         <td style={{...tableCellStyle, textAlign: 'center'}}><Link href={`/invoices/${inv.id}`} style={actionButtonStyle}>View</Link></td>
                     </tr>
                 ))}
@@ -247,6 +290,8 @@ const InvoicesTab = ({ invoices }: { invoices: Invoice[] | null }) => {
 
 const AMCsTab = ({ amcs }: { amcs: AMC[] | null }) => {
     if (!amcs || amcs.length === 0) return <p style={emptyStateStyle}>No AMCs found for this client.</p>;
+     // Sort AMCs by start date, newest first
+    const sortedAmcs = [...amcs].sort((a, b) => Number(b.startDate) - Number(a.startDate));
     return (
         <TableWrapper>
             <thead>
@@ -256,17 +301,20 @@ const AMCsTab = ({ amcs }: { amcs: AMC[] | null }) => {
                     <th style={tableHeaderStyle}>Start Date</th>
                     <th style={tableHeaderStyle}>End Date</th>
                     <th style={tableHeaderStyle}>Status</th>
+                    <th style={{...tableHeaderStyle, textAlign: 'right'}}>Amount</th> {/* Added Amount Header */}
                     <th style={{...tableHeaderStyle, textAlign: 'center'}}>Actions</th>
                 </tr>
             </thead>
             <tbody>
-                {amcs.map(amc => (
+                {sortedAmcs.map(amc => (
                     <tr key={amc.id} style={tableRowStyle}>
                         <td style={tableCellStyle}>{amc.amcId}</td>
-                        <td style={tableCellStyle}>{amc.productInstances?.map(p => p.product.name).join(', ') || 'N/A'}</td>
+                        {/* Updated Product Name Logic */}
+                        <td style={{...tableCellStyle, whiteSpace: 'normal', minWidth: '200px'}}>{amc.productInstances?.map(p => p.productName).join(', ') || 'N/A'}</td>
                         <td style={tableCellStyle}>{formatDate(amc.startDate)}</td>
                         <td style={tableCellStyle}>{formatDate(amc.endDate)}</td>
                         <td style={tableCellStyle}><StatusBadge status={amc.status} /></td>
+                        <td style={{...tableCellStyle, textAlign: 'right'}}>{formatCurrency(amc.contractAmount)}</td> {/* Added Amount Data */}
                         <td style={{...tableCellStyle, textAlign: 'center'}}><Link href={`/amcs/${amc.id}`} style={actionButtonStyle}>View</Link></td>
                     </tr>
                 ))}
@@ -276,47 +324,12 @@ const AMCsTab = ({ amcs }: { amcs: AMC[] | null }) => {
 };
 
 const AddressesTab = ({ addresses }: { addresses: Address[] | null }) => {
-    if (!addresses || addresses.length === 0) return <p style={emptyStateStyle}>No address found for this client.</p>;
+    if (!addresses || addresses.length === 0) return <p style={emptyStateStyle}>No addresses found for this client.</p>;
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem' }}>
             {addresses.map((addr, index) => (
                 <DetailItem key={index} label={addr.tag} value={addr.address} />
             ))}
         </div>
     );
 };
-
-
-// --- Helper Components & Styles ---
-const TableWrapper = ({ children }: { children: ReactNode }) => (
-    <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '800px' }}>
-            {children}
-        </table>
-    </div>
-);
-
-const StatusBadge = ({ status }: { status: string }) => {
-    const statusStyles: Record<string, React.CSSProperties> = { 
-        Draft: { background: '#f3f4f6', color: '#4b5563' }, Sent: { background: '#dbeafe', color: '#1d4ed8' }, 
-        Approved: { background: '#d1fae5', color: '#065f46' }, Rejected: { background: '#fee2e2', color: '#991b1b' },
-        Paid: { background: '#d1fae5', color: '#065f46' }, Overdue: { background: '#fee2e2', color: '#991b1b' },
-        Active: { background: '#d1fae5', color: '#065f46' }, Expired: { background: '#fee2e-e2', color: '#991b1b' }
-    };
-    const style = statusStyles[status] || statusStyles['Draft'];
-    return ( <span style={{ ...style, padding: '0.25rem 0.75rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: '600', textTransform: 'capitalize' }}>{status}</span> );
-};
-
-interface DetailItemProps { label: string; value: string | number | null | undefined; }
-const DetailItem = ({ label, value }: DetailItemProps) => value ? ( <div style={{marginBottom: '1rem'}}> <p style={{fontSize: '0.875rem', color: '#6b7280', fontWeight: '600', textTransform: 'uppercase'}}>{label}</p> <p style={{fontWeight: '500'}}>{value}</p> </div> ) : null;
-
-const FormSection = ({ title, children }: { title?: string, children: ReactNode }) => ( <div style={{ backgroundColor: '#fff', borderRadius: '0.75rem', padding: '1.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', border: '1px solid #e5e7eb' }}> {title && <h2 style={{ fontSize: '1.25rem', fontWeight: '600', borderBottom: '1px solid #e5e7eb', paddingBottom: '1rem', marginBottom: '1.5rem' }}>{title}</h2>} {children} </div> );
-
-const buttonStyle: React.CSSProperties = { backgroundColor: '#2563eb', color: '#fff', fontWeight: '600', padding: '0.6rem 1.2rem', borderRadius: '0.375rem', textDecoration: 'none', border: 'none', height: 'fit-content' };
-const actionButtonStyle: React.CSSProperties = { backgroundColor: '#fff', color: '#374151', fontWeight: '500', padding: '0.4rem 0.8rem', borderRadius: '0.375rem', border: '1px solid #d1d5db', cursor: 'pointer', textDecoration: 'none', fontSize: '0.875rem' };
-const tabButtonStyle: React.CSSProperties = { padding: '0.75rem 1rem', fontWeight: '600', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1rem', marginBottom: '-2px' };
-const emptyStateStyle: React.CSSProperties = { textAlign: 'center', padding: '2rem', color: '#6b7280' };
-const tableHeaderStyle: React.CSSProperties = { textAlign: 'left', padding: '0.75rem 1.5rem', color: '#6b7280', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e5e7eb' };
-const tableCellStyle: React.CSSProperties = { padding: '1rem 1.5rem', color: '#374151', verticalAlign: 'middle', whiteSpace: 'nowrap' };
-const tableRowStyle: React.CSSProperties = { borderTop: '1px solid #f3f4f6' };
-

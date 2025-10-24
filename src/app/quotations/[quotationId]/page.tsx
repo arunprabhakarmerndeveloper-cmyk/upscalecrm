@@ -39,15 +39,15 @@ interface IEditHistoryEntry {
   version: number;
   updatedAt: string | number;
   reason: string;
-  totalAmount: number; 
+  totalAmount: number;
   updatedBy: { name: string } | null;
   clientInfo: IClientInfo;
   lineItems: ILineItem[];
   validUntil: string | number | null;
   commercialTerms: ICommercialTerm[] | null;
   imageUrls: string[] | null;
-  taxPercentage?: number; 
-  grandTotal?: number; 
+  taxPercentage?: number;
+  grandTotal?: number;
 }
 interface IAssociatedDoc {
   id: string;
@@ -89,7 +89,7 @@ const GET_QUOTATION_DETAILS = gql`
       quotationId
       status
       totalAmount
-      grandTotal 
+      grandTotal
       validUntil
       taxPercentage
       commercialTerms {
@@ -114,8 +114,8 @@ const GET_QUOTATION_DETAILS = gql`
         version
         updatedAt
         reason
-        totalAmount 
-        grandTotal 
+        totalAmount
+        grandTotal
         taxPercentage
         updatedBy {
           name
@@ -178,13 +178,11 @@ const APPROVE_QUOTATION_MUTATION = gql`
 `;
 const CREATE_INVOICE_MUTATION = gql`
   mutation CreateInvoiceFromQuotation(
-    $invoiceId: String!
     $quotationId: ID!
     $dueDate: String
     $installationDate: String
   ) {
     createInvoiceFromQuotation(
-      invoiceId: $invoiceId
       quotationId: $quotationId
       dueDate: $dueDate
       installationDate: $installationDate
@@ -208,10 +206,13 @@ const formatDate = (dateValue: string | number | null | undefined) => {
         year: "numeric",
       });
 };
-const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat("en-AE", { style: "currency", currency: "AED" }).format(
-    amount
-  );
+const formatCurrency = (amount: number | null | undefined) => {
+  if (amount === null || amount === undefined || isNaN(amount)) return "N/A";
+  return new Intl.NumberFormat("en-AE", {
+    style: "currency",
+    currency: "AED",
+  }).format(amount);
+};
 const buttonStyle: React.CSSProperties = {
   padding: "0.6rem 1.2rem",
   fontWeight: "600",
@@ -221,24 +222,23 @@ const buttonStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
-const generateQuotationPDF = async (data: IQuotation | IEditHistoryEntry) => {
+const generateQuotationPDF = async (
+  data: IQuotation | IEditHistoryEntry,
+  mainQuotationId?: string
+) => {
   const [headerLogo, watermarkLogo] = await Promise.all([
     getImageAsBase64("/upscale-water-solution-logo+title.png"),
     getImageAsBase64("/upscale-water-solutions-logo.png"),
   ]);
-
   if (!headerLogo || !watermarkLogo) {
-    throw new Error("Could not load required PDF assets (logos missing)");
+    throw new Error("Could not load required PDF assets.");
   }
-
   const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
   const pageHeight = doc.internal.pageSize.getHeight();
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 15;
   let lastY = 0;
-  const footerHeight = 15; // reserve space for footer
-
-  // Brand Colors
+  const footerHeight = 15;
   const colors = {
     navy: "#0B1E3C",
     royal: "#125EAB",
@@ -248,12 +248,8 @@ const generateQuotationPDF = async (data: IQuotation | IEditHistoryEntry) => {
     white: "#FFFFFF",
     footer: "#555555",
   };
-
-  // Firm Details
   const firmAddress =
     "Upscale Water Solutions, Al Barsha, Hassanicor Building, Level 1, Office Number 105 - Dubai";
-
-  // --- Header ---
   const logoWidth = 40;
   const logoHeight = logoWidth / (500 / 200);
   doc.addImage(
@@ -264,31 +260,24 @@ const generateQuotationPDF = async (data: IQuotation | IEditHistoryEntry) => {
     logoWidth,
     logoHeight
   );
-
   doc.setFont("helvetica", "bold");
   doc.setFontSize(18);
   doc.setTextColor(colors.navy);
   doc.text("Quotation", margin, 18);
-
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.setTextColor(colors.text);
   doc.text(firmAddress, margin, 24);
-
   doc.setDrawColor(colors.aqua);
   doc.setLineWidth(0.5);
   doc.line(margin, 30, pageWidth - margin, 30);
   lastY = 35;
-
-  // Helper: check if content fits current page; if not, add page
   const ensureSpace = (requiredHeight: number) => {
     if (lastY + requiredHeight > pageHeight - footerHeight) {
       doc.addPage();
       lastY = margin;
     }
   };
-
-  // --- Client Details ---
   const clientDetails = [
     ["Client Name:", data.clientInfo.name],
     ["Contact Number:", data.clientInfo.phone || "N/A"],
@@ -301,7 +290,6 @@ const generateQuotationPDF = async (data: IQuotation | IEditHistoryEntry) => {
     ],
     ["Valid Until:", formatDate(data.validUntil)],
   ];
-
   autoTable(doc, {
     startY: lastY,
     body: clientDetails,
@@ -309,19 +297,15 @@ const generateQuotationPDF = async (data: IQuotation | IEditHistoryEntry) => {
     styles: { fontSize: 10, cellPadding: 2.5 },
     columnStyles: { 0: { fontStyle: "bold", cellWidth: 50 } },
     alternateRowStyles: { fillColor: colors.gray },
-    margin: { bottom: footerHeight }, // ensure table avoids footer
+    margin: { bottom: footerHeight },
   });
-
   lastY = doc.lastAutoTable?.finalY ? doc.lastAutoTable.finalY + 10 : lastY;
-
-  // --- Product / Line Items ---
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
   doc.setTextColor(colors.royal);
   ensureSpace(6);
   doc.text("Products & Pricing", margin, lastY);
   lastY += 6;
-
   const lineItems = (data.lineItems || []).map((item) => [
     item.productName,
     item.description || "—",
@@ -329,7 +313,6 @@ const generateQuotationPDF = async (data: IQuotation | IEditHistoryEntry) => {
     formatCurrency(item.price),
     formatCurrency(item.price * item.quantity),
   ]);
-
   autoTable(doc, {
     startY: lastY,
     head: [["Product", "Description", "Qty", "Price", "Total"]],
@@ -344,25 +327,20 @@ const generateQuotationPDF = async (data: IQuotation | IEditHistoryEntry) => {
     styles: { lineColor: colors.aqua, lineWidth: 0.1 },
     margin: { bottom: footerHeight },
   });
-
   lastY = doc.lastAutoTable?.finalY ? doc.lastAutoTable.finalY + 10 : lastY;
-
-  // --- Totals Section ---
   const subtotal =
     data.lineItems?.reduce(
       (sum, item) => sum + item.price * item.quantity,
       0
     ) || 0;
-  const tax = ((data.taxPercentage ?? 5) / 100) * subtotal;
+  const tax = ((data.taxPercentage ?? 0) / 100) * subtotal;
   const grandTotal = subtotal + tax;
-
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
   doc.setTextColor(colors.navy);
   ensureSpace(6);
   doc.text("Summary", margin, lastY);
   lastY += 6;
-
   autoTable(doc, {
     startY: lastY,
     body: [
@@ -375,10 +353,7 @@ const generateQuotationPDF = async (data: IQuotation | IEditHistoryEntry) => {
     theme: "plain",
     margin: { bottom: footerHeight },
   });
-
   lastY = doc.lastAutoTable?.finalY ? doc.lastAutoTable.finalY + 10 : lastY;
-
-  // --- Commercial Terms ---
   if (data.commercialTerms && data.commercialTerms.length > 0) {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
@@ -386,17 +361,13 @@ const generateQuotationPDF = async (data: IQuotation | IEditHistoryEntry) => {
     ensureSpace(6);
     doc.text("Commercial Terms", margin, lastY);
     lastY += 6;
-
     data.commercialTerms.forEach((term) => {
-      // Title
       ensureSpace(5);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
       doc.setTextColor(colors.navy);
       doc.text(term.title, margin, lastY);
       lastY += 5;
-
-      // Bullet points
       doc.setFont("helvetica", "normal");
       doc.setFontSize(10);
       doc.setTextColor(colors.text);
@@ -413,8 +384,6 @@ const generateQuotationPDF = async (data: IQuotation | IEditHistoryEntry) => {
       lastY += 3;
     });
   }
-
-  // --- Images Section ---
   if (data.imageUrls && data.imageUrls.length > 0) {
     lastY += 10;
     ensureSpace(8);
@@ -422,51 +391,33 @@ const generateQuotationPDF = async (data: IQuotation | IEditHistoryEntry) => {
     doc.setTextColor(colors.royal);
     doc.text("Attached Images", margin, lastY);
     lastY += 8;
-
-    const imgWidth = 50;
-    const imgHeight = 35;
-    const imgGap = 8;
+    const imgWidth = 50,
+      imgHeight = 35,
+      imgGap = 8;
     let x = margin;
-
-    // Check if entire image row fits; otherwise move to next page
-    const rows = Math.ceil(
-      (data.imageUrls.length * (imgWidth + imgGap)) / (pageWidth - margin * 2)
-    );
-    const requiredHeight = rows * (imgHeight + imgGap);
-    ensureSpace(requiredHeight);
-
     for (const img of data.imageUrls) {
       const base64 = await getImageAsBase64(img);
       if (!base64) continue;
-
       if (x + imgWidth > pageWidth - margin) {
         x = margin;
         lastY += imgHeight + imgGap;
       }
-
       ensureSpace(imgHeight + footerHeight);
       doc.addImage(base64, "JPEG", x, lastY, imgWidth, imgHeight);
       x += imgWidth + imgGap;
     }
-
     lastY += imgHeight + 10;
   }
-
-  // --- Footer + Watermark ---
   const pageCount = doc.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
-
-    // Watermark
     doc.setGState(new GState({ opacity: 0.08 }));
-    const watermarkWidth = 120;
-    const watermarkHeight = 120;
-    const x = (pageWidth - watermarkWidth) / 2;
-    const y = (pageHeight - watermarkHeight) / 2;
+    const watermarkWidth = 120,
+      watermarkHeight = 120;
+    const x = (pageWidth - watermarkWidth) / 2,
+      y = (pageHeight - watermarkHeight) / 2;
     doc.addImage(watermarkLogo, "PNG", x, y, watermarkWidth, watermarkHeight);
     doc.setGState(new GState({ opacity: 1 }));
-
-    // Footer
     const footerY = pageHeight - 12;
     doc.setFontSize(9);
     doc.setTextColor(colors.footer);
@@ -478,11 +429,10 @@ const generateQuotationPDF = async (data: IQuotation | IEditHistoryEntry) => {
       align: "right",
     });
   }
-
   const fileName =
     "quotationId" in data
-      ? `Quotation-${data.quotationId}.pdf`
-      : `Quotation-V${data.version}.pdf`;
+      ? `${data.quotationId}.pdf`
+      : `${mainQuotationId}-V${data.version}.pdf`;
   doc.save(fileName);
 };
 
@@ -598,8 +548,6 @@ const imageThumbnailStyle: React.CSSProperties = {
   border: "1px solid #e5e7eb",
   cursor: "pointer",
 };
-
-// --- Modals & Menus ---
 const ModalWrapper = ({
   title,
   children,
@@ -891,7 +839,6 @@ const ActionsMenu = ({
     </div>
   );
 };
-// 👇 FIX 1: The ModalController component was missing
 const ModalController = ({
   modalState,
   setModalState,
@@ -899,26 +846,17 @@ const ModalController = ({
   modalState: ModalState;
   setModalState: React.Dispatch<React.SetStateAction<ModalState>>;
 }) => {
-  // First, handle the case where the modal is closed
-  if (!modalState.type) {
-    return null;
-  }
-
-  // Now that we know 'type' exists, we can safely access other properties
+  if (!modalState.type) return null;
   const { type, message, onConfirm } = modalState;
-
-  if (type === "create-invoice") return null; // This is handled separately
-
-  if (type === "success") {
+  if (type === "create-invoice") return null;
+  if (type === "success")
     return (
       <SuccessModal
         message={message || ""}
         onClose={() => setModalState({ type: null })}
       />
     );
-  }
-
-  if (type === "error") {
+  if (type === "error")
     return (
       <ConfirmationModal
         title="Error"
@@ -929,9 +867,7 @@ const ModalController = ({
         showCancel={false}
       />
     );
-  }
-
-  if (type === "confirm") {
+  if (type === "confirm")
     return (
       <ConfirmationModal
         title="Confirm Action"
@@ -943,67 +879,21 @@ const ModalController = ({
         onCancel={() => setModalState({ type: null })}
       />
     );
-  }
-
   return null;
 };
 
-// --- Reusable Snapshot Components ---
-const QuotationSnapshot = ({
-  data,
+// FIX 1: Create a reusable ImageGallery component
+const ImageGallery = ({
+  imageUrls,
+  onImageClick,
 }: {
-  data: IEditHistoryEntry | IQuotation;
-}) => (
-  <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-    <div
-      style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2rem" }}
-    >
-      <div>
-        <h3
-          style={{
-            color: "#6b7280",
-            fontSize: "0.75rem",
-            fontWeight: "600",
-            marginBottom: "0.25rem",
-            textTransform: "uppercase",
-          }}
-        >
-          Client Details
-        </h3>
-        <p>
-          <strong>Name:</strong> {data.clientInfo.name}
-        </p>
-        <p>
-          <strong>Phone:</strong> {data.clientInfo.phone || "N/A"}
-        </p>
-        <p>
-          <strong>Billing Address:</strong>{" "}
-          {data.clientInfo.billingAddress || "N/A"}
-        </p>
-      </div>
-      <div>
-        <h3
-          style={{
-            color: "#6b7280",
-            fontSize: "0.75rem",
-            fontWeight: "600",
-            marginBottom: "0.25rem",
-            textTransform: "uppercase",
-          }}
-        >
-          Important Dates
-        </h3>
-        {/* 👇 FIX 2: Check if 'createdAt' exists before formatting */}
-        {"createdAt" in data && (
-          <p>
-            <strong>Created At:</strong> {formatDate(data.createdAt)}
-          </p>
-        )}
-        <p>
-          <strong>Valid Until:</strong> {formatDate(data.validUntil)}
-        </p>
-      </div>
-    </div>
+  imageUrls: string[] | null | undefined;
+  onImageClick: (url: string) => void;
+}) => {
+  if (!imageUrls || imageUrls.length === 0) {
+    return null;
+  }
+  return (
     <div>
       <h3
         style={{
@@ -1014,25 +904,118 @@ const QuotationSnapshot = ({
           textTransform: "uppercase",
         }}
       >
-        Products & Services
+        Images
       </h3>
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <thead style={{ backgroundColor: "#f9fafb" }}>
-          <tr>
-            <th style={{ ...tableHeaderStyle, width: "35%" }}>Item</th>
-            <th style={{ ...tableHeaderStyle, width: "35%" }}>Description</th>
-            <th style={{ ...tableHeaderStyle, textAlign: "center" }}>Qty</th>
-            <th style={{ ...tableHeaderStyle, textAlign: "right" }}>Price</th>
-            <th style={{ ...tableHeaderStyle, textAlign: "right" }}>
-              Total
-            </th>{" "}
-            {/* NEW */}
-          </tr>
-        </thead>
-        <tbody>
-          {data.lineItems?.map((item, index) => {
-            const lineTotal = item.quantity * item.price; // total for this product
-            return (
+      <div style={imageGridStyle}>
+        {imageUrls.map((url, index) => (
+          <div
+            key={index}
+            style={imageThumbnailStyle}
+            onClick={() => onImageClick(url)}
+          >
+            <Image
+              src={url}
+              alt={`Quotation image ${index + 1}`}
+              style={{ objectFit: "cover" }}
+              fill
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// --- Reusable Snapshot Components ---
+const QuotationSnapshot = ({
+  data,
+  onImageClick,
+}: {
+  data: IEditHistoryEntry | IQuotation;
+  onImageClick: (url: string) => void;
+}) => {
+  const subtotal =
+    data.lineItems?.reduce(
+      (sum, item) => sum + item.price * item.quantity,
+      0
+    ) || 0;
+  const taxAmount = (subtotal * (data.taxPercentage ?? 0)) / 100;
+  const grandTotal = subtotal + taxAmount;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+      <div
+        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2rem" }}
+      >
+        <div>
+          <h3
+            style={{
+              color: "#6b7280",
+              fontSize: "0.75rem",
+              fontWeight: "600",
+              marginBottom: "0.25rem",
+              textTransform: "uppercase",
+            }}
+          >
+            Client Details
+          </h3>
+          <p>
+            <strong>Name:</strong> {data.clientInfo.name}
+          </p>
+          <p>
+            <strong>Phone:</strong> {data.clientInfo.phone || "N/A"}
+          </p>
+          <p>
+            <strong>Billing Address:</strong>{" "}
+            {data.clientInfo.billingAddress || "N/A"}
+          </p>
+        </div>
+        <div>
+          <h3
+            style={{
+              color: "#6b7280",
+              fontSize: "0.75rem",
+              fontWeight: "600",
+              marginBottom: "0.25rem",
+              textTransform: "uppercase",
+            }}
+          >
+            Important Dates
+          </h3>
+          {"createdAt" in data && (
+            <p>
+              <strong>Created At:</strong> {formatDate(data.createdAt)}
+            </p>
+          )}
+          <p>
+            <strong>Valid Until:</strong> {formatDate(data.validUntil)}
+          </p>
+        </div>
+      </div>
+      <div>
+        <h3
+          style={{
+            color: "#6b7280",
+            fontSize: "0.75rem",
+            fontWeight: "600",
+            marginBottom: "0.25rem",
+            textTransform: "uppercase",
+          }}
+        >
+          Products & Services
+        </h3>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead style={{ backgroundColor: "#f9fafb" }}>
+            <tr>
+              <th style={{ ...tableHeaderStyle, width: "35%" }}>Item</th>
+              <th style={{ ...tableHeaderStyle, width: "35%" }}>Description</th>
+              <th style={{ ...tableHeaderStyle, textAlign: "center" }}>Qty</th>
+              <th style={{ ...tableHeaderStyle, textAlign: "right" }}>Price</th>
+              <th style={{ ...tableHeaderStyle, textAlign: "right" }}>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.lineItems?.map((item, index) => (
               <tr key={index} style={{ borderTop: "1px solid #f3f4f6" }}>
                 <td style={tableCellStyle}>{item.productName}</td>
                 <td style={tableCellStyle}>{item.description || "—"}</td>
@@ -1043,77 +1026,134 @@ const QuotationSnapshot = ({
                   {formatCurrency(item.price)}
                 </td>
                 <td style={{ ...tableCellStyle, textAlign: "right" }}>
-                  {formatCurrency(lineTotal)}
+                  {formatCurrency(item.quantity * item.price)}
                 </td>
               </tr>
-            );
-          })}
-          {/* --- Footer Row: Total Amount --- */}
-          <tr>
-            <td
-              colSpan={4}
-              style={{ ...tableCellStyle, fontWeight: 600, textAlign: "right" }}
-            >
-              Subtotal:
-            </td>
-            <td
-              style={{ ...tableCellStyle, textAlign: "right", fontWeight: 600 }}
-            >
-              {formatCurrency(
-                data.lineItems?.reduce(
-                  (sum, item) => sum + item.price * item.quantity,
-                  0
-                ) || 0
-              )}
-            </td>
-          </tr>
-          {/* Tax row if needed */}
-          <tr>
-            <td
-              colSpan={4}
-              style={{ ...tableCellStyle, fontWeight: 600, textAlign: "right" }}
-            >
-              `VAT ({data.taxPercentage ?? 0}%):`
-            </td>
-            <td
-              style={{ ...tableCellStyle, textAlign: "right", fontWeight: 600 }}
-            >
-              {formatCurrency(
-                (data.lineItems?.reduce(
-                  (sum, item) => sum + item.price * item.quantity,
-                  0
-                ) || 0) * 0.05
-              )}
-            </td>
-          </tr>
-          {/* Grand Total */}
-          <tr>
-            <td
-              colSpan={4}
-              style={{ ...tableCellStyle, fontWeight: 700, textAlign: "right" }}
-            >
-              Grand Total:
-            </td>
-            <td
-              style={{ ...tableCellStyle, textAlign: "right", fontWeight: 700 }}
-            >
-              {formatCurrency(
-                (data.lineItems?.reduce(
-                  (sum, item) => sum + item.price * item.quantity,
-                  0
-                ) || 0) * 1.05
-              )}
-            </td>
-          </tr>
-        </tbody>
-      </table>
+            ))}
+            <tr>
+              <td
+                colSpan={4}
+                style={{
+                  ...tableCellStyle,
+                  fontWeight: 600,
+                  textAlign: "right",
+                }}
+              >
+                Subtotal:
+              </td>
+              <td
+                style={{
+                  ...tableCellStyle,
+                  textAlign: "right",
+                  fontWeight: 600,
+                }}
+              >
+                {formatCurrency(subtotal)}
+              </td>
+            </tr>
+            <tr>
+              <td
+                colSpan={4}
+                style={{
+                  ...tableCellStyle,
+                  fontWeight: 600,
+                  textAlign: "right",
+                }}
+              >{`VAT (${data.taxPercentage ?? 0}%):`}</td>
+              <td
+                style={{
+                  ...tableCellStyle,
+                  textAlign: "right",
+                  fontWeight: 600,
+                }}
+              >
+                {formatCurrency(taxAmount)}
+              </td>
+            </tr>
+            <tr>
+              <td
+                colSpan={4}
+                style={{
+                  ...tableCellStyle,
+                  fontWeight: 700,
+                  textAlign: "right",
+                }}
+              >
+                Grand Total:
+              </td>
+              <td
+                style={{
+                  ...tableCellStyle,
+                  textAlign: "right",
+                  fontWeight: 700,
+                }}
+              >
+                {formatCurrency(grandTotal)}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      {data.commercialTerms && data.commercialTerms.length > 0 && (
+        <div>
+          <h3
+            style={{
+              color: "#6b7280",
+              fontSize: "0.75rem",
+              fontWeight: "600",
+              marginBottom: "0.25rem",
+              textTransform: "uppercase",
+            }}
+          >
+            Commercial Terms
+          </h3>
+          <div
+            style={{
+              backgroundColor: "#f9fafb",
+              border: "1px solid #e5e7eb",
+              borderRadius: "0.5rem",
+              padding: "1rem",
+              fontSize: "0.9rem",
+            }}
+          >
+            {data.commercialTerms.map((term, idx) => (
+              <div
+                key={idx}
+                style={{
+                  marginBottom:
+                    idx === data.commercialTerms.length - 1 ? 0 : "1rem",
+                }}
+              >
+                <strong style={{ color: "#111827" }}>{term.title}:</strong>
+                <div
+                  style={{
+                    whiteSpace: "pre-line",
+                    color: "#374151",
+                    paddingTop: "0.25rem",
+                  }}
+                >
+                  {term.content}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      <ImageGallery imageUrls={data.imageUrls} onImageClick={onImageClick} />
     </div>
-  </div>
-);
+  );
+};
 
-const VersionHistoryItem = ({ version }: { version: IEditHistoryEntry }) => {
+const VersionHistoryItem = ({
+  version,
+  quotationId,
+  onImageClick,
+}: {
+  version: IEditHistoryEntry;
+  quotationId: string;
+  onImageClick: (url: string) => void;
+}) => {
   const [isOpen, setIsOpen] = useState(false);
-
   return (
     <div
       style={{
@@ -1149,7 +1189,6 @@ const VersionHistoryItem = ({ version }: { version: IEditHistoryEntry }) => {
           ▼
         </span>
       </button>
-
       {isOpen && (
         <div
           style={{
@@ -1162,13 +1201,12 @@ const VersionHistoryItem = ({ version }: { version: IEditHistoryEntry }) => {
               ...buttonStyle,
               backgroundColor: "#2563eb",
               color: "#fff",
-              marginTop: "1rem",
+              marginBottom: "1rem",
             }}
-            onClick={() => generateQuotationPDF(version)}
+            onClick={() => generateQuotationPDF(version, quotationId)}
           >
             Download PDF
           </button>
-
           <p
             style={{
               fontSize: "0.875rem",
@@ -1177,10 +1215,8 @@ const VersionHistoryItem = ({ version }: { version: IEditHistoryEntry }) => {
             }}
           >
             Updated by: {version.updatedBy?.name || "Unknown"} | Total Amount:{" "}
-            {formatCurrency(version.totalAmount)}
+            {formatCurrency(version.grandTotal ?? version.totalAmount)}
           </p>
-
-          {/* Quotation Snapshot */}
           <div
             style={{
               backgroundColor: "#fff",
@@ -1190,50 +1226,8 @@ const VersionHistoryItem = ({ version }: { version: IEditHistoryEntry }) => {
               marginBottom: "1rem",
             }}
           >
-            <QuotationSnapshot data={version} />
+            <QuotationSnapshot data={version} onImageClick={onImageClick} />
           </div>
-
-          {/* Commercial Terms */}
-          {version.commercialTerms && version.commercialTerms.length > 0 && (
-            <div style={{ marginBottom: "1rem" }}>
-              <h4 style={{ fontWeight: 600, marginBottom: "0.5rem" }}>
-                Commercial Terms
-              </h4>
-              <ul style={{ paddingLeft: "1rem" }}>
-                {version.commercialTerms.map((term, idx) => (
-                  <li key={idx} style={{ marginBottom: "0.5rem" }}>
-                    <strong>{term.title}:</strong>
-                    <div style={{ whiteSpace: "pre-line" }}>{term.content}</div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Images */}
-          {version.imageUrls && version.imageUrls.length > 0 && (
-            <div>
-              <h4 style={{ fontWeight: 600, marginBottom: "0.5rem" }}>
-                Images
-              </h4>
-              <div style={imageGridStyle}>
-                {version.imageUrls.map((url, idx) => (
-                  <div
-                    key={idx}
-                    style={imageThumbnailStyle}
-                    onClick={() => window.open(url, "_blank")}
-                  >
-                    <Image
-                      src={url}
-                      alt={`Version ${version.version} image ${idx + 1}`}
-                      fill
-                      style={{ objectFit: "cover" }}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       )}
     </div>
@@ -1251,7 +1245,7 @@ export default function QuotationDetailPage() {
 
   const { loading, error, data, refetch } = useQuery<{ quotation: IQuotation }>(
     GET_QUOTATION_DETAILS,
-    { variables: { id }, skip: !id, fetchPolicy: "cache-and-network" } 
+    { variables: { id }, skip: !id, fetchPolicy: "cache-and-network" }
   );
   const [updateStatus, { loading: statusUpdateLoading }] = useMutation(
     UPDATE_STATUS_MUTATION,
@@ -1279,24 +1273,33 @@ export default function QuotationDetailPage() {
         setModalState({ type: "error", message: `Error: ${err.message}` }),
     }
   );
-  const [createInvoiceMutation, { loading: invoiceCreationLoading }] = useMutation(
-    CREATE_INVOICE_MUTATION,
-    {
+  const [createInvoiceMutation, { loading: invoiceCreationLoading }] =
+    useMutation(CREATE_INVOICE_MUTATION, {
       onCompleted: (data) => {
         const newInvoiceId = data.createInvoiceFromQuotation.id;
-        setModalState({ type: "success", message: "Invoice created successfully!" });
-        router.push(`/invoices/${newInvoiceId}`); // Navigate to the new invoice detail page
+        setModalState({
+          type: "success",
+          message: "Invoice created successfully!",
+        });
+        router.push(`/invoices/${newInvoiceId}`);
       },
-      onError: (err) => setModalState({ type: "error", message: `Error creating invoice: ${err.message}` }),
-       // Refetch relevant queries after creating an invoice
-      refetchQueries: [ { query: GET_QUOTATION_DETAILS, variables: { id } }, "GetInvoices", /* "GetDashboardData" if you have one */ ],
-      awaitRefetchQueries: true, // Wait for refetch before proceeding
-    }
-  );
+      onError: (err) =>
+        setModalState({
+          type: "error",
+          message: `Error creating invoice: ${err.message}`,
+        }),
+      refetchQueries: [
+        { query: GET_QUOTATION_DETAILS, variables: { id } },
+        "GetInvoices",
+      ],
+      awaitRefetchQueries: true,
+    });
 
-  // Correct handler name to match the mutation hook
-  const handleCreateInvoice = (dates: { dueDate: string; installationDate: string }) => {
-     createInvoiceMutation({ variables: { quotationId: id, ...dates } });
+  const handleCreateInvoice = (dates: {
+    dueDate: string;
+    installationDate: string;
+  }) => {
+    createInvoiceMutation({ variables: { quotationId: id, ...dates } });
   };
 
   const handleStatusChange = (newStatus: string) => {
@@ -1400,7 +1403,6 @@ export default function QuotationDetailPage() {
           </button>{" "}
         </div>
       )}
-
       <div
         style={{
           display: "flex",
@@ -1454,6 +1456,7 @@ export default function QuotationDetailPage() {
             disabled={quotation.status !== "Approved"}
             style={{
               ...buttonStyle,
+              backgroundColor: "#10b981",
               cursor:
                 quotation.status !== "Approved" ? "not-allowed" : "pointer",
               opacity: quotation.status !== "Approved" ? 0.5 : 1,
@@ -1468,32 +1471,9 @@ export default function QuotationDetailPage() {
           </button>
         </div>
       </div>
-
       <FormSection title="Current Version">
-        <QuotationSnapshot data={quotation} />
+        <QuotationSnapshot data={quotation} onImageClick={setViewingImage} />
       </FormSection>
-
-      {quotation.imageUrls && quotation.imageUrls.length > 0 && (
-        <FormSection title="Images">
-          <div style={imageGridStyle}>
-            {quotation.imageUrls.map((url, index) => (
-              <div
-                key={index}
-                style={imageThumbnailStyle}
-                onClick={() => setViewingImage(url)}
-              >
-                <Image
-                  src={url}
-                  alt={`Quotation image ${index + 1}`}
-                  style={{ objectFit: "cover" }}
-                  fill
-                />
-              </div>
-            ))}
-          </div>
-        </FormSection>
-      )}
-
       {quotation.editHistory && quotation.editHistory.length > 0 && (
         <FormSection title="Version History">
           <div
@@ -1503,7 +1483,12 @@ export default function QuotationDetailPage() {
               .slice()
               .reverse()
               .map((version) => (
-                <VersionHistoryItem key={version.version} version={version} />
+                <VersionHistoryItem
+                  key={version.version}
+                  version={version}
+                  quotationId={quotation.quotationId}
+                  onImageClick={setViewingImage}
+                />
               ))}
           </div>
         </FormSection>
