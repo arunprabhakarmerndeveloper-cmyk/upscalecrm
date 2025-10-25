@@ -222,6 +222,64 @@ const buttonStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
+const numberToWordsAED = (num: number): string => {
+  const ones = [
+    "", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
+    "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen",
+    "Seventeen", "Eighteen", "Nineteen",
+  ];
+  const tens = [
+    "", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety",
+  ];
+  const scales = ["", "Thousand", "Million", "Billion"];
+
+  const convertChunk = (n: number): string => {
+    if (n === 0) return "";
+    if (n < 20) return ones[n];
+    if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 !== 0 ? " " + ones[n % 10] : "");
+    if (n < 1000) {
+      return (
+        ones[Math.floor(n / 100)] +
+        " Hundred" +
+        (n % 100 !== 0 ? " " + convertChunk(n % 100) : "")
+      );
+    }
+    return "";
+  };
+
+  if (num === 0) return "Zero AED Only";
+
+  // Handle decimal part (Fils)
+  const numStr = num.toFixed(2);
+  const [integerPart, decimalPart] = numStr.split('.').map(Number);
+  const fils = parseInt(decimalPart.toString(), 10);
+
+  let words = "";
+  let scaleIndex = 0;
+  let n = integerPart;
+
+  if (n === 0) {
+      words = "Zero";
+  } else {
+      while (n > 0) {
+          const chunk = n % 1000;
+          if (chunk > 0) {
+              words = convertChunk(chunk) + " " + scales[scaleIndex] + (words ? " " + words : "");
+          }
+          n = Math.floor(n / 1000);
+          scaleIndex++;
+      }
+  }
+
+  let result = words.trim() + " AED";
+  
+  if (fils > 0) {
+    result += " and " + (fils < 20 ? ones[fils] : tens[Math.floor(fils / 10)] + (fils % 10 !== 0 ? " " + ones[fils % 10] : "")) + " Fils";
+  }
+  
+  return result + " Only";
+};
+
 const generateQuotationPDF = async (
   data: IQuotation | IEditHistoryEntry,
   mainQuotationId?: string
@@ -347,6 +405,7 @@ const generateQuotationPDF = async (
       ["Subtotal:", formatCurrency(subtotal)],
       [`VAT (${data.taxPercentage ?? 0}%):`, formatCurrency(tax)],
       ["Grand Total:", formatCurrency(grandTotal)],
+      ["Amount in words:", numberToWordsAED(grandTotal)]
     ],
     styles: { fontSize: 10, cellPadding: 3 },
     columnStyles: { 0: { fontStyle: "bold", cellWidth: 80 } },
@@ -354,6 +413,7 @@ const generateQuotationPDF = async (
     margin: { bottom: footerHeight },
   });
   lastY = doc.lastAutoTable?.finalY ? doc.lastAutoTable.finalY + 10 : lastY;
+
   if (data.commercialTerms && data.commercialTerms.length > 0) {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
@@ -391,9 +451,11 @@ const generateQuotationPDF = async (
     doc.setTextColor(colors.royal);
     doc.text("Attached Images", margin, lastY);
     lastY += 8;
-    const imgWidth = 50,
-      imgHeight = 35,
-      imgGap = 8;
+
+    const availableWidth = pageWidth - margin * 2;
+    const imgGap = 10;
+    const imgWidth = (availableWidth - imgGap) / 2;
+    const imgHeight = imgWidth * (35 / 50);
     let x = margin;
     for (const img of data.imageUrls) {
       const base64 = await getImageAsBase64(img);
@@ -424,10 +486,23 @@ const generateQuotationPDF = async (
     doc.text(`Page ${i} of ${pageCount}`, pageWidth / 2, footerY + 2, {
       align: "center",
     });
-    doc.text("Email: info@upscalewatersolutions.com", margin, footerY + 2.5);
-    doc.text("Phone: +971 58 584 2822", pageWidth - margin, footerY + 2.5, {
-      align: "right",
-    });
+    
+    const emailText = "Email: info@upscalewatersolutions.com";
+    doc.text(emailText, margin, footerY + 2.5);
+    // Get the width of the text to create a clickable area
+    const emailWidth = doc.getTextWidth(emailText);
+    // Create the link (x, y, w, h, options)
+    // We make the height small, like 5mm, centered on the text
+    doc.link(margin, footerY, emailWidth, 5, { url: 'mailto:info@upscalewatersolutions.com' });
+
+    // --- Phone Link ---
+    const phoneText = "Phone: +971 52 634 7143";
+    const phoneWidth = doc.getTextWidth(phoneText);
+    const phoneX = pageWidth - margin - phoneWidth; // Calculate the left-side 'x'
+    
+    doc.text(phoneText, pageWidth - margin, footerY + 2.5, { align: "right" });
+    // Create the link (x, y, w, h, options)
+    doc.link(phoneX, footerY, phoneWidth, 5, { url: 'tel:+971526347143' });
   }
   const fileName =
     "quotationId" in data
@@ -882,7 +957,6 @@ const ModalController = ({
   return null;
 };
 
-// FIX 1: Create a reusable ImageGallery component
 const ImageGallery = ({
   imageUrls,
   onImageClick,
@@ -926,7 +1000,6 @@ const ImageGallery = ({
   );
 };
 
-// --- Reusable Snapshot Components ---
 const QuotationSnapshot = ({
   data,
   onImageClick,
@@ -941,7 +1014,6 @@ const QuotationSnapshot = ({
     ) || 0;
   const taxAmount = (subtotal * (data.taxPercentage ?? 0)) / 100;
   const grandTotal = subtotal + taxAmount;
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
       <div
@@ -1120,7 +1192,8 @@ const QuotationSnapshot = ({
               <div
                 key={idx}
                 style={{
-                  marginBottom: idx === data.commercialTerms!.length - 1 ? 0 : "1rem",
+                  marginBottom:
+                    idx === data.commercialTerms!.length - 1 ? 0 : "1rem",
                 }}
               >
                 <strong style={{ color: "#111827" }}>{term.title}:</strong>
