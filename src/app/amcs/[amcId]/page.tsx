@@ -199,7 +199,14 @@ const params = useParams();
       const footerHeight = 15;
 
       const colors = { navy: "#0B1E3C", royal: "#125EAB", aqua: "#0FD1E3", gray: "#F4F6FA", text: "#333333", white: "#FFFFFF", footer: "#555555" };
-      const firmAddress = "Upscale Water Solutions, Al Barsha, Hassanicor Building, Level 1, Office Number 105 - Dubai";
+      
+      // --- UPDATED/NEW CONSTANTS ---
+      const firmAddress = "Upscale Trading (FZC) United Arab Emirates Block B-B32-068 SRTIP Free Zone";
+      const email = "info@upscalewatersolutions.com";
+      const phone = "+971 52 634 7143";
+      const website = "www.upscalewatersolutions.com";
+      // --- END UPDATED/NEW CONSTANTS ---
+
 
       const ensureSpace = (requiredHeight: number) => {
         if (lastY + requiredHeight > pageHeight - footerHeight) {
@@ -208,24 +215,46 @@ const params = useParams();
         }
       };
 
-      // --- Header ---
+      // --- UPDATED HEADER ---
       const logoWidth = 40;
       const logoHeight = logoWidth / (500 / 200);
       doc.addImage(headerLogo, "PNG", pageWidth - margin - logoWidth, 12, logoWidth, logoHeight);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(18);
       doc.setTextColor(colors.navy);
-      doc.text("Annual Maintenance Contract (AMC)", margin, 18);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      doc.setTextColor(colors.text);
-      doc.text(firmAddress, margin, 24);
+      doc.text("Annual Maintenance Contract (AMC)", margin, 18); // Kept this title
+      
+      // --- NEW HEADER CONTACT INFO ---
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(colors.text); 
+
+      doc.text(`Email: ${email}  |  Phone: ${phone}`, margin, 24);
+      doc.link(margin + 10, 21, doc.getTextWidth(email), 5, {
+        url: `mailto:${email}`,
+      });
+      doc.link(
+        margin + 20 + doc.getTextWidth(`Email: ${email}  |  `),
+        21,
+        doc.getTextWidth(phone),
+        5,
+        { url: `tel:${phone}` }
+      );
+
+      doc.text(`Website: ${website}`, margin, 28);
+      doc.link(margin + 14, 25, doc.getTextWidth(website), 5, {
+        url: `https://${website}`,
+      });
+      // --- END OF NEW INFO ---
+
       doc.setDrawColor(colors.aqua);
       doc.setLineWidth(0.5);
-      doc.line(margin, 30, pageWidth - margin, 30);
-      lastY = 35;
+      doc.line(margin, 32, pageWidth - margin, 32); // Adjusted Y
+      lastY = 37; // Adjusted Y
+      // --- END UPDATED HEADER ---
 
-      // --- Client Details ---
+
+      // --- Client Details (CONTENT - UNCHANGED) ---
       const clientDetails = [
         ["Client Name:", amc.clientInfo.name],
         ["Contact Number:", amc.clientInfo.phone || "N/A"],
@@ -242,10 +271,11 @@ const params = useParams();
         styles: { fontSize: 10, cellPadding: 2.5 },
         columnStyles: { 0: { fontStyle: "bold", cellWidth: 50 } },
         alternateRowStyles: { fillColor: colors.gray },
+        margin: { bottom: footerHeight }, // <-- NECESSARY FIX
       });
       lastY = doc.lastAutoTable?.finalY ? doc.lastAutoTable.finalY + 10 : lastY;
 
-      // --- Products & Pricing Table ---
+      // --- Products & Pricing Table (CONTENT - UNCHANGED) ---
       doc.setFont("helvetica", "bold");
       doc.setFontSize(12);
       doc.setTextColor(colors.royal);
@@ -268,10 +298,11 @@ const params = useParams();
         headStyles: { fontStyle: "bold", fillColor: colors.royal, textColor: colors.white },
         alternateRowStyles: { fillColor: colors.gray },
         styles: { lineColor: colors.aqua, lineWidth: 0.1 },
+        margin: { bottom: footerHeight }, // <-- NECESSARY FIX
       });
       lastY = doc.lastAutoTable?.finalY ? doc.lastAutoTable.finalY + 10 : lastY;
 
-      // --- Totals Section ---
+      // --- Totals Section (CONTENT - UNCHANGED) ---
       const subtotal = amc.productInstances.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 1), 0);
       const tax = (subtotal * (amc.taxPercentage || 0)) / 100;
 
@@ -291,10 +322,11 @@ const params = useParams();
         styles: { fontSize: 10, cellPadding: 3 },
         columnStyles: { 0: { fontStyle: "bold", cellWidth: 80 } },
         theme: "plain",
+        margin: { bottom: footerHeight }, // <-- NECESSARY FIX
       });
       lastY = doc.lastAutoTable?.finalY ? doc.lastAutoTable.finalY + 10 : lastY;
       
-      // --- Commercial Terms ---
+      // --- Commercial Terms (CONTENT - UNCHANGED) ---
       if (amc.commercialTerms) {
         doc.setFont("helvetica", "bold");
         doc.setFontSize(12);
@@ -317,7 +349,7 @@ const params = useParams();
         lastY += 3;
       }
       
-      // --- Scope of Work & Service Schedule ---
+      // --- Scope of Work & Service Schedule (CONTENT - UNCHANGED) ---
       doc.setFontSize(12);
       doc.setTextColor(colors.royal);
       doc.setFont("helvetica", "bold");
@@ -331,6 +363,7 @@ const params = useParams();
       doc.setFontSize(10);
       doc.setTextColor(colors.text);
       const splitText = doc.splitTextToSize(scopeText, pageWidth - margin * 2);
+      ensureSpace(splitText.length * 5 + 5); // Ensure space for this text
       doc.text(splitText, margin, lastY);
       lastY += splitText.length * 5 + 5;
       
@@ -344,14 +377,13 @@ const params = useParams();
           theme: "grid",
           headStyles: { fontStyle: "bold", fillColor: colors.royal, textColor: colors.white },
           alternateRowStyles: { fillColor: colors.gray },
+          margin: { bottom: footerHeight }, // <-- NECESSARY FIX
       });
       lastY = doc.lastAutoTable?.finalY ? doc.lastAutoTable.finalY + 10 : lastY;
 
-      // --- Signatures ---
-      if (lastY > pageHeight - 50) {
-        doc.addPage();
-        lastY = margin;
-      }
+      // --- Signatures (CONTENT - UNCHANGED) ---
+      ensureSpace(50); // Use ensureSpace instead of manual check
+      
       doc.setTextColor(colors.royal);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(12);
@@ -366,12 +398,12 @@ const params = useParams();
       doc.line(pageWidth - margin - 70, lastY + 40, pageWidth - margin, lastY + 40);
       doc.text("Client", pageWidth - margin - 70, lastY + 45);
 
-      // --- Footer + Watermark on every page ---
+      // --- UPDATED Footer + Watermark on every page ---
       const pageCount = doc.internal.pages.length;
       for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
 
-        // Watermark
+        // Watermark (Unchanged)
         doc.setGState(new GState({ opacity: 0.08 }));
         const watermarkWidth = 120;
         const watermarkHeight = 120;
@@ -380,13 +412,27 @@ const params = useParams();
         doc.addImage(watermarkLogo, "PNG", x, y, watermarkWidth, watermarkHeight);
         doc.setGState(new GState({ opacity: 1 }));
 
-        // Footer
-        const footerY = pageHeight - 12;
+        // --- NEW FOOTER LAYOUT ---
+        const footerLineY = pageHeight - footerHeight;
+        doc.setDrawColor(colors.aqua); // Match header line color
+        doc.setLineWidth(0.5); // Match header line width
+        doc.line(margin, footerLineY, pageWidth - margin, footerLineY);
+        
+        const footerY = footerLineY + 3; // Position text below the line
         doc.setFontSize(9);
         doc.setTextColor(colors.footer);
-        doc.text(`Page ${i} of ${pageCount}`, pageWidth / 2, footerY + 2, { align: "center" });
-        doc.text("Email: info@upscalewatersolutions.com", margin, footerY + 2.5);
-        doc.text("Phone: +971 58 584 2822", pageWidth - margin, footerY + 2.5, { align: "right" });
+
+        // 1. Address on the left
+        doc.text(firmAddress, margin, footerY + 2.5, {
+          align: "left",
+        });
+
+        // 2. Page number on the right
+        const pageNumText = `Page ${i} of ${pageCount}`;
+        doc.text(pageNumText, pageWidth - margin, footerY + 2.5, {
+          align: "right",
+        });
+        // --- END NEW FOOTER ---
       }
       
       doc.save(`AMC-${amc.amcId}.pdf`);
@@ -398,6 +444,7 @@ const params = useParams();
       setIsGeneratingPdf(false);
     }
   };
+  
   if (!id || authLoading || loading)
     return (
       <div style={{ textAlign: "center", marginTop: "5rem" }}>

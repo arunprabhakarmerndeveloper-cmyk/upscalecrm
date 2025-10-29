@@ -471,6 +471,7 @@ const handleDownloadPdf = async (
     const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 15;
     let lastY = 0;
+    const footerHeight = 15; // <-- Added this for margin calculations
 
     const colors = {
       navy: "#0B1E3C",
@@ -483,11 +484,24 @@ const handleDownloadPdf = async (
       green: "#28a745",
       red: "#dc3545",
     };
+    
+    // --- UPDATED CONSTANTS ---
     const firmAddress =
-      "Upscale Water Solutions, Al Barsha, Hassanicor Building, Level 1, Office Number 105 - Dubai";
-    const firmTRN = "TRN: 1000000000000";
+      "Upscale Trading (FZC) United Arab Emirates Block B-B32-068 SRTIP Free Zone";
+    const email = "info@upscalewatersolutions.com";
+    const phone = "+971 52 634 7143";
+    const website = "www.upscalewatersolutions.com";
+    // const firmTRN = "TRN: 1000000000000"; // <-- REMOVED as requested
 
-    // --- PDF Header ---
+    // --- Added ensureSpace function ---
+    const ensureSpace = (requiredHeight: number) => {
+      if (lastY + requiredHeight > pageHeight - footerHeight) {
+        doc.addPage();
+        lastY = margin;
+      }
+    };
+
+    // --- UPDATED PDF Header ---
     const logoWidth = 40;
     const logoHeight = logoWidth / (500 / 200);
     doc.addImage(
@@ -503,19 +517,41 @@ const handleDownloadPdf = async (
     doc.setTextColor(colors.navy);
 
     // --- PDF Title (Invoice vs Receipt) ---
-    const title = isReceipt ? "Tax Invoice / Receipt" : "Tax Invoice";
+    const title = isReceipt ? "Receipt" : "Tax Invoice";
     doc.text(title, margin, 18);
 
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
+    // --- NEW HEADER CONTACT INFO ---
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
     doc.setTextColor(colors.text);
-    doc.text(firmAddress, margin, 24);
-    doc.text(firmTRN, margin, 28);
+
+    doc.text(`Email: ${email}  |  Phone: ${phone}`, margin, 24);
+    doc.link(margin + 10, 21, doc.getTextWidth(email), 5, {
+      url: `mailto:${email}`,
+    });
+    doc.link(
+      margin + 20 + doc.getTextWidth(`Email: ${email}  |  `),
+      21,
+      doc.getTextWidth(phone),
+      5,
+      { url: `tel:${phone}` }
+    );
+
+    doc.text(`Website: ${website}`, margin, 28);
+    doc.link(margin + 14, 25, doc.getTextWidth(website), 5, {
+      url: `https://${website}`,
+    });
+    // --- END OF NEW INFO ---
+
     doc.setDrawColor(colors.aqua);
     doc.setLineWidth(0.5);
-    doc.line(margin, 35, pageWidth - margin, 35);
+    doc.line(margin, 32, pageWidth - margin, 32); // Adjusted Y
+    // --- END UPDATED PDF Header ---
 
-    // --- Invoice & Client Details ---
+
+    // --- Invoice & Client Details (CONTENT - UNCHANGED) ---
+    // This section uses hardcoded Y values, which is fine as it starts at 42,
+    // which is 10mm below our new header line at 32.
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
     doc.text("BILLED TO:", margin, 42);
@@ -545,7 +581,7 @@ const handleDownloadPdf = async (
       doc.text(formatDate(invoice.paymentDate), rightColX + 30, 57);
     }
 
-    lastY = 75;
+    lastY = 75; // Set start Y for the table
 
     // --- Line Items Table ---
     const lineItemsBody = (invoice.lineItems || []).map((item) => [
@@ -573,16 +609,18 @@ const handleDownloadPdf = async (
         fontSize: 9,
       },
       columnStyles: {
-        0: { cellWidth: 95 },
+        0: { cellWidth: 105 },
         1: { cellWidth: 15, halign: "center" },
         2: { cellWidth: 30, halign: "right" },
         3: { cellWidth: 30, halign: "right" },
       },
+      margin: { bottom: footerHeight }, // <-- NECESSARY FIX
     });
 
     lastY = doc.lastAutoTable?.finalY || lastY + 20;
 
     // --- Totals Section ---
+    ensureSpace(35); // <-- NECESSARY FIX (5mm padding + 30mm height)
     const summaryY = lastY + 5;
     const totalColX = pageWidth - margin - 50;
     const labelColX = totalColX - 2;
@@ -636,28 +674,36 @@ const handleDownloadPdf = async (
       { align: "right" }
     );
 
-    lastY = summaryY + 30;
+    lastY = summaryY + 30; // Update lastY
     doc.setTextColor(colors.text);
 
     // --- Terms of Service ---
     if (invoice.termsOfService) {
-      doc.setFontSize(9);
-      doc.setFont("helvetica", "bold");
-      doc.text("Terms of Service:", margin, lastY);
+      doc.setFontSize(9); // Set font for accurate calculation
       doc.setFont("helvetica", "normal");
       const splitTerms = doc.splitTextToSize(
         invoice.termsOfService,
         pageWidth - margin * 2 - 80
       );
+      const requiredHeight = 5 + (splitTerms.length * 5); // Title + content
+      
+      ensureSpace(requiredHeight + 3); // <-- NECESSARY FIX
+
+      doc.setFont("helvetica", "bold");
+      doc.text("Terms of Service:", margin, lastY);
+      doc.setFont("helvetica", "normal");
       doc.text(splitTerms, margin, lastY + 5);
+      
+      lastY += requiredHeight + 3; // <-- Update lastY
     }
 
-    // --- Footer + Watermark on every page ---
+    // --- UPDATED Footer + Watermark on every page ---
     const pageCount =
       doc.internal.pages.length > 0 ? doc.internal.pages.length : 1;
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
 
+      // Watermark
       doc.setGState(new GState({ opacity: 0.08 }));
       const watermarkWidth = 120;
       const watermarkHeight = 120;
@@ -670,6 +716,7 @@ const handleDownloadPdf = async (
         watermarkHeight
       );
 
+      // "PAID" Stamp (Kept this logic)
       if (isReceipt) {
         doc.setGState(new GState({ opacity: 0.1 }));
         doc.setFont("helvetica", "bold");
@@ -683,16 +730,27 @@ const handleDownloadPdf = async (
 
       doc.setGState(new GState({ opacity: 1 }));
 
-      const footerY = pageHeight - 12;
+      // --- NEW FOOTER LAYOUT ---
+      const footerLineY = pageHeight - footerHeight;
+      doc.setDrawColor(colors.aqua); // Match header line color
+      doc.setLineWidth(0.5); // Match header line width
+      doc.line(margin, footerLineY, pageWidth - margin, footerLineY);
+      
+      const footerY = footerLineY + 3; // Position text below the line
       doc.setFontSize(9);
       doc.setTextColor(colors.footer);
-      doc.text(`Page ${i} of ${pageCount}`, pageWidth / 2, footerY + 2, {
-        align: "center",
+
+      // 1. Address on the left
+      doc.text(firmAddress, margin, footerY + 2.5, {
+        align: "left",
       });
-      doc.text("Email: info@upscalewatersolutions.com", margin, footerY + 2.5);
-      doc.text("Phone: +971 58 584 2822", pageWidth - margin, footerY + 2.5, {
+
+      // 2. Page number on the right
+      const pageNumText = `Page ${i} of ${pageCount}`;
+      doc.text(pageNumText, pageWidth - margin, footerY + 2.5, {
         align: "right",
       });
+      // --- END NEW FOOTER ---
     }
 
     const fileName = isReceipt

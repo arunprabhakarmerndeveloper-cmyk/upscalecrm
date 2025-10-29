@@ -224,19 +224,48 @@ const buttonStyle: React.CSSProperties = {
 
 const numberToWordsAED = (num: number): string => {
   const ones = [
-    "", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
-    "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen",
-    "Seventeen", "Eighteen", "Nineteen",
+    "",
+    "One",
+    "Two",
+    "Three",
+    "Four",
+    "Five",
+    "Six",
+    "Seven",
+    "Eight",
+    "Nine",
+    "Ten",
+    "Eleven",
+    "Twelve",
+    "Thirteen",
+    "Fourteen",
+    "Fifteen",
+    "Sixteen",
+    "Seventeen",
+    "Eighteen",
+    "Nineteen",
   ];
   const tens = [
-    "", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety",
+    "",
+    "",
+    "Twenty",
+    "Thirty",
+    "Forty",
+    "Fifty",
+    "Sixty",
+    "Seventy",
+    "Eighty",
+    "Ninety",
   ];
   const scales = ["", "Thousand", "Million", "Billion"];
 
   const convertChunk = (n: number): string => {
     if (n === 0) return "";
     if (n < 20) return ones[n];
-    if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 !== 0 ? " " + ones[n % 10] : "");
+    if (n < 100)
+      return (
+        tens[Math.floor(n / 10)] + (n % 10 !== 0 ? " " + ones[n % 10] : "")
+      );
     if (n < 1000) {
       return (
         ones[Math.floor(n / 100)] +
@@ -251,7 +280,7 @@ const numberToWordsAED = (num: number): string => {
 
   // Handle decimal part (Fils)
   const numStr = num.toFixed(2);
-  const [integerPart, decimalPart] = numStr.split('.').map(Number);
+  const [integerPart, decimalPart] = numStr.split(".").map(Number);
   const fils = parseInt(decimalPart.toString(), 10);
 
   let words = "";
@@ -259,24 +288,34 @@ const numberToWordsAED = (num: number): string => {
   let n = integerPart;
 
   if (n === 0) {
-      words = "Zero";
+    words = "Zero";
   } else {
-      while (n > 0) {
-          const chunk = n % 1000;
-          if (chunk > 0) {
-              words = convertChunk(chunk) + " " + scales[scaleIndex] + (words ? " " + words : "");
-          }
-          n = Math.floor(n / 1000);
-          scaleIndex++;
+    while (n > 0) {
+      const chunk = n % 1000;
+      if (chunk > 0) {
+        words =
+          convertChunk(chunk) +
+          " " +
+          scales[scaleIndex] +
+          (words ? " " + words : "");
       }
+      n = Math.floor(n / 1000);
+      scaleIndex++;
+    }
   }
 
   let result = words.trim() + " AED";
-  
+
   if (fils > 0) {
-    result += " and " + (fils < 20 ? ones[fils] : tens[Math.floor(fils / 10)] + (fils % 10 !== 0 ? " " + ones[fils % 10] : "")) + " Fils";
+    result +=
+      " and " +
+      (fils < 20
+        ? ones[fils]
+        : tens[Math.floor(fils / 10)] +
+          (fils % 10 !== 0 ? " " + ones[fils % 10] : "")) +
+      " Fils";
   }
-  
+
   return result + " Only";
 };
 
@@ -307,7 +346,10 @@ const generateQuotationPDF = async (
     footer: "#555555",
   };
   const firmAddress =
-    "Upscale Water Solutions, Al Barsha, Hassanicor Building, Level 1, Office Number 105 - Dubai";
+    "Upscale Trading (FZC) United Arab Emirates Block B-B32-068 SRTIP Free Zone";
+  const email = "info@upscalewatersolutions.com";
+  const phone = "+971 52 634 7143";
+  const website = "www.upscalewatersolutions.com";
   const logoWidth = 40;
   const logoHeight = logoWidth / (500 / 200);
   doc.addImage(
@@ -322,14 +364,34 @@ const generateQuotationPDF = async (
   doc.setFontSize(18);
   doc.setTextColor(colors.navy);
   doc.text("Quotation", margin, 18);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.setTextColor(colors.text);
-  doc.text(firmAddress, margin, 24);
+
+  // --- NEW HEADER CONTACT INFO ---
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.setTextColor(colors.text); // As you mentioned
+
+  // You can add clickable links just like your footer had
+  doc.text(`Email: ${email}  |  Phone: ${phone}`, margin, 24);
+  doc.link(margin + 10, 21, doc.getTextWidth(email), 5, {
+    url: `mailto:${email}`,
+  });
+  doc.link(
+    margin + 20 + doc.getTextWidth(`Email: ${email}  |  `),
+    21,
+    doc.getTextWidth(phone),
+    5,
+    { url: `tel:${phone}` }
+  );
+
+  doc.text(`Website: ${website}`, margin, 28);
+  doc.link(margin + 14, 25, doc.getTextWidth(website), 5, {
+    url: `https://${website}`,
+  });
+
   doc.setDrawColor(colors.aqua);
   doc.setLineWidth(0.5);
-  doc.line(margin, 30, pageWidth - margin, 30);
-  lastY = 35;
+  doc.line(margin, 32, pageWidth - margin, 32); 
+  lastY = 37;
   const ensureSpace = (requiredHeight: number) => {
     if (lastY + requiredHeight > pageHeight - footerHeight) {
       doc.addPage();
@@ -405,7 +467,7 @@ const generateQuotationPDF = async (
       ["Subtotal:", formatCurrency(subtotal)],
       [`VAT (${data.taxPercentage ?? 0}%):`, formatCurrency(tax)],
       ["Grand Total:", formatCurrency(grandTotal)],
-      ["Amount in words:", numberToWordsAED(grandTotal)]
+      ["Amount in words:", numberToWordsAED(grandTotal)],
     ],
     styles: { fontSize: 10, cellPadding: 3 },
     columnStyles: { 0: { fontStyle: "bold", cellWidth: 80 } },
@@ -464,15 +526,18 @@ const generateQuotationPDF = async (
         x = margin;
         lastY += imgHeight + imgGap;
       }
-      ensureSpace(imgHeight + footerHeight);
+      ensureSpace(imgHeight); // <-- Just the image height is needed
       doc.addImage(base64, "JPEG", x, lastY, imgWidth, imgHeight);
       x += imgWidth + imgGap;
     }
     lastY += imgHeight + 10;
   }
   const pageCount = doc.getNumberOfPages();
+
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
+
+    // --- Watermark ---
     doc.setGState(new GState({ opacity: 0.08 }));
     const watermarkWidth = 120,
       watermarkHeight = 120;
@@ -480,29 +545,26 @@ const generateQuotationPDF = async (
       y = (pageHeight - watermarkHeight) / 2;
     doc.addImage(watermarkLogo, "PNG", x, y, watermarkWidth, watermarkHeight);
     doc.setGState(new GState({ opacity: 1 }));
-    const footerY = pageHeight - 12;
+
+    const footerLineY = pageHeight - footerHeight;
+    doc.setDrawColor(colors.aqua); // Match header line color
+    doc.setLineWidth(0.5); // Match header line width
+    doc.line(margin, footerLineY, pageWidth - margin, footerLineY);
+    
+    const footerY = footerLineY + 3; // (was pageHeight - 12)
     doc.setFontSize(9);
     doc.setTextColor(colors.footer);
-    doc.text(`Page ${i} of ${pageCount}`, pageWidth / 2, footerY + 2, {
-      align: "center",
-    });
-    
-    const emailText = "Email: info@upscalewatersolutions.com";
-    doc.text(emailText, margin, footerY + 2.5);
-    // Get the width of the text to create a clickable area
-    const emailWidth = doc.getTextWidth(emailText);
-    // Create the link (x, y, w, h, options)
-    // We make the height small, like 5mm, centered on the text
-    doc.link(margin, footerY, emailWidth, 5, { url: 'mailto:info@upscalewatersolutions.com' });
 
-    // --- Phone Link ---
-    const phoneText = "Phone: +971 52 634 7143";
-    const phoneWidth = doc.getTextWidth(phoneText);
-    const phoneX = pageWidth - margin - phoneWidth; // Calculate the left-side 'x'
-    
-    doc.text(phoneText, pageWidth - margin, footerY + 2.5, { align: "right" });
-    // Create the link (x, y, w, h, options)
-    doc.link(phoneX, footerY, phoneWidth, 5, { url: 'tel:+971526347143' });
+    // 1. Address on the left
+    doc.text(firmAddress, margin, footerY + 2.5, {
+      align: "left",
+    });
+
+    // 2. Page number on the right
+    const pageNumText = `Page ${i} of ${pageCount}`;
+    doc.text(pageNumText, pageWidth - margin, footerY + 2.5, {
+      align: "right",
+    });
   }
   const fileName =
     "quotationId" in data
